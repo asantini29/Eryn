@@ -484,8 +484,8 @@ class EnsembleSampler(object):
 
         self.info = info
 
-        all_moves_tmp = (
-            self.moves if not self.has_reversible_jump else self.moves + self.rj_moves
+        all_moves_tmp = list(
+            tuple(self.moves) if not self.has_reversible_jump else tuple(self.moves) + tuple(self.rj_moves)
         )
 
         self.all_moves = {}
@@ -668,7 +668,7 @@ class EnsembleSampler(object):
                     self._priors[key] = test
 
                 elif hasattr(test, "logpdf"):
-                    self._priors[key] = {"model_0": test}
+                    self._priors[key] = test
 
                 else:
                     raise ValueError(
@@ -788,7 +788,13 @@ class EnsembleSampler(object):
             raise ValueError("'store' must be False when 'iterations' is None")
 
         # Interpret the input as a walker state and check the dimensions.
-        state = State(initial_state, copy=True)
+
+        # initial_state.__class__ rather than State in case it is a subclass
+        # of State
+        if hasattr(initial_state, "__class__") and issubclass(initial_state.__class__, State) and not isinstance(initial_state.__class__, State):
+            state = initial_state.__class__(initial_state, copy=True)
+        else:
+            state = State(initial_state, copy=True)
 
         # Check the backend shape
         for i, (name, branch) in enumerate(state.branches.items()):
@@ -836,6 +842,10 @@ class EnsembleSampler(object):
                 )
 
             self.temperature_control.betas = state.betas.copy()
+
+        else:
+            if hasattr(self, "temperature_control") and hasattr(self.temperature_control, "betas"):
+                state.betas = self.temperature_control.betas.copy()
 
         if np.shape(state.log_like) != (self.ntemps, self.nwalkers):
             raise ValueError("incompatible input dimensions")
@@ -939,6 +949,14 @@ class EnsembleSampler(object):
                             moves_accepted_fraction=moves_accepted_fraction,
                         )
 
+                    # update after diagnostic and stopping check
+                    if (
+                        self.update_iterations > 0
+                        and self.update_fn is not None
+                        and (i + 1) % (self.update_iterations) == 0
+                    ):
+                        self.update_fn(i, state, self)
+
                     pbar.update(1)
                     i += 1
 
@@ -1030,22 +1048,14 @@ class EnsembleSampler(object):
                 if stop:
                     break
 
-            # update after diagnostic and stopping check
-            if (
-                self.update_iterations > 0
-                and self.update_fn is not None
-                and (i + 1) % (self.update_iterations) == 0
-            ):
-                self.update_fn(i, results, self)
-
             i += 1
-
+            
         # Store so that the ``initial_state=None`` case will work
         self._previous_state = results
 
         return results
 
-    def compute_log_prior(self, coords, inds=None):
+    def compute_log_prior(self, coords, inds=None, supps=None, branch_supps=None):
         """Calculate the vector of log-prior for the walkers
 
         Args:
@@ -1079,7 +1089,7 @@ class EnsembleSampler(object):
 
         # for completely customizable priors
         if "all_models_together" in self.priors:
-            prior_out = self.priors["all_models_together"].logpdf(coords, inds)
+            prior_out = self.priors["all_models_together"].logpdf(coords, inds, supps=supps, branch_supps=branch_supps)
             assert prior_out.shape == (ntemps, nwalkers)
 
         elif self.provide_groups:
@@ -1163,13 +1173,6 @@ class EnsembleSampler(object):
 
         """
 
-        # Check that the parameters are in physical ranges.
-        for ptemp in coords.values():
-            if np.any(np.isinf(ptemp)):
-                raise ValueError("At least one parameter value was infinite")
-            if np.any(np.isnan(ptemp)):
-                raise ValueError("At least one parameter value was NaN")
-
         # if inds not provided, use all
         if inds is None:
             inds = {
@@ -1177,10 +1180,17 @@ class EnsembleSampler(object):
                 for name in coords
             }
 
+        # Check that the parameters are in physical ranges.
+        for name, ptemp in coords.items():
+            if np.any(np.isinf(ptemp[inds[name]])):
+                raise ValueError("At least one parameter value was infinite")
+            if np.any(np.isnan(ptemp[inds[name]])):
+                raise ValueError("At least one parameter value was NaN")
+
         # if no prior values are added, compute_prior
         # this is necessary to ensure Likelihood is not evaluated outside of the prior
         if logp is None:
-            logp = self.compute_log_prior(coords, inds=inds)
+            logp = self.compute_log_prior(coords, inds=inds, supps=supps, branch_supps=branch_supps)
 
         # if all points are outside the prior
         if np.all(np.isinf(logp)):

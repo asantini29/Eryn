@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from ..utils.utility import get_integrated_act, thermodynamic_integration_log_evidence
+from ..utils.utility import get_integrated_act, thermodynamic_integration_log_evidence, stepping_stone_log_evidence, psrf
 from ..state import State
 
 __all__ = ["Backend"]
@@ -522,8 +522,9 @@ class Backend(object):
             )
 
         thin = self.iteration - it if it != self.iteration else 1
+        discard = it + 1 - thin
         # check for blobs
-        blobs = self.get_blobs(discard=it - 1, thin=thin)
+        blobs = self.get_blobs(discard=discard, thin=thin)
         if blobs is not None:
             blobs = blobs[0]
 
@@ -531,15 +532,15 @@ class Backend(object):
         sample = State(
             {
                 name: temp[0]
-                for name, temp in self.get_chain(discard=it - 1, thin=thin).items()
+                for name, temp in self.get_chain(discard=discard, thin=thin).items()
             },
-            log_like=self.get_log_like(discard=it - 1, thin=thin)[0],
-            log_prior=self.get_log_prior(discard=it - 1, thin=thin)[0],
+            log_like=self.get_log_like(discard=discard, thin=thin)[0],
+            log_prior=self.get_log_prior(discard=discard, thin=thin)[0],
             inds={
                 name: temp[0]
-                for name, temp in self.get_inds(discard=it - 1, thin=thin).items()
+                for name, temp in self.get_inds(discard=discard, thin=thin).items()
             },
-            betas=self.get_betas(discard=it - 1, thin=thin).squeeze(),
+            betas=self.get_betas(discard=discard, thin=thin).squeeze(),
             blobs=blobs,
             random_state=self.random_state,
         )
@@ -552,7 +553,7 @@ class Backend(object):
             State: :class:`eryn.state.State` object containing the last sample from the chain.
 
         """
-        it = self.iteration
+        it = self.iteration - 1
 
         # get the state from the last iteration
         last_sample = self.get_a_sample(it)
@@ -601,11 +602,12 @@ class Backend(object):
 
         return {name: values * thin_factor for name, values in out.items()}
 
-    def get_evidence_estimate(self, discard=0, thin=1, return_error=True):
+    def get_evidence_estimate(self, discard=0, thin=1, return_error=True, method="therodynamic", **ss_kwargs):
         """Get an estimate of the evidence
 
         This function gets the sample information and uses 
-        :func:`thermodynamic_integration_log_evidence` to compute the evidence estimate.
+        :func:`thermodynamic_integration_log_evidence` or 
+        :func:`stepping_stone_log_evidence` to compute the evidence estimate.
 
         Args:
             discard (int, optional): Discard the first ``discard`` steps in
@@ -616,6 +618,8 @@ class Backend(object):
                 (default: ``1``)
             return_error (bool, optional): If True, return the error associated
                 with the log evidence estimate. (default: ``True``)
+            method (string, optional): Method to compute the evidence. Available
+                methods are the 'thermodynamic' and 'stepping-stone' (default: ``thermodynamic``)
 
         Returns:
             double or tuple: Evidence estimate
@@ -636,15 +640,92 @@ class Backend(object):
 
         # setup information
         betas = betas_all[0]
-        logls = np.mean(logls_all, axis=(0, -1))
 
         # get log evidence and error
-        logZ, dlogZ = thermodynamic_integration_log_evidence(betas, logls)
-
+        if method.lower() in ["therodynamic", "thermodynamic integration", "thermo", "ti"]:
+            logls = np.mean(logls_all, axis=(0, -1))
+            logZ, dlogZ = thermodynamic_integration_log_evidence(betas, logls)
+        elif method.lower() in ["stepping stone", "ss", "step", "stone", "stepping-stone"]:
+            logZ, dlogZ = stepping_stone_log_evidence(betas, logls_all, **ss_kwargs)
+        else:
+            raise ValueError(
+                """Please choose only between 'thermodynamic' and 'stepping-stone' methods.""")
+            
         if return_error:
             return (logZ, dlogZ)
         else:
             return logZ
+        
+    def get_gelman_rubin_convergence_diagnostic(self, discard=0, thin=1, doprint=True, **psrf_kwargs):
+        """
+        The Gelman - Rubin convergence diagnostic. 
+        A general approach to monitoring convergence of MCMC output of multiple walkers. 
+        The function makes a comparison of within-chain and between-chain variances. 
+        A large deviation between these two variances indicates non-convergence, and 
+        the output [Rhat] deviates from unity.
+        
+        Based on 
+        a. Brooks, SP. and Gelman, A. (1998) General methods for monitoring convergence 
+        of iterative simulations. Journal of Computational and Graphical Statistics, 7, 434-455
+        b. Gelman, A and Rubin, DB (1992) Inference from iterative simulation using multiple sequences, 
+        Statistical Science, 7, 457-511.
+        
+        Args:
+            C (np.ndarray[nwalkers, nsamples, ndim]): The parameter traces. The MCMC chains. 
+            doprint (bool, optional): Flag to print the results on screen.
+        discard (int, optional): Discard the first ``discard`` steps in
+                the chain as burn-in. (default: ``0``)
+        thin (int, optional): Use only every ``thin`` steps from the
+                chain. The returned estimate is multiplied by ``thin`` so the
+                estimated time is in units of steps, not thinned steps.
+                (default: ``1``)
+        doprint (bool, optional): Flag to print a table with the results, per temperature.
+
+        Returns
+            dict:   ``Rhat_all_branches``: 
+                Returns an estimate of the Gelman-Rubin convergence diagnostic ``Rhat``,
+                per temperature, stored in a dictionary, per branch name.
+        
+        """
+        Rhat_all_branches = dict()
+        # Loop over the different models
+        for branch in self.branch_names:
+            
+            Rhat = dict() # Initialize
+            # Loop over the temperatures
+            for temp in range(self.ntemps):
+                
+                # Get all the chains per branch
+                chains = self.get_chain(discard=discard, thin=thin)[branch][:, temp]
+                
+                # Handle the cases of multiple leaves on a given branch
+                if chains.shape[2] == 1:
+                    # If no multiple leaves, we squeeze and transpose to the 
+                    # right shape to pass to the psrf function, which is  (nwalkers, nsamples, ndim)
+                    chains_in = chains.squeeze().transpose((1, 0, 2))
+                else:
+                    # Project onto the model dim all chains [in case of RJ and multiple leaves per branch]
+                    inds = self.get_inds(discard=discard, thin=thin)[branch][:, temp] # [t, w, nleavesmax, dim]
+                    min_leaves = inds.sum(axis=(0,2)).min()
+                    tmp = [inds[:, w].flatten() for w in range(self.nwalkers)]
+                    keep = [np.where( tmp[w] )[0][:min_leaves] for w in range(len(tmp)) ]
+                    chains_in = np.asarray([chains[:,w].reshape(-1, self.ndims[branch])[keep[w]] for w in range(self.nwalkers)])
+                                
+                Rhat[temp] = psrf(chains_in, self.ndims[branch], **psrf_kwargs)
+            Rhat_all_branches[branch] = Rhat # Store the Rhat per branch
+
+        if doprint: # Print table of results
+            print("  Gelman-Rubin diagnostic \n  <R̂>: Mean value for all parameters\n")
+            print("  --------------")
+            for branch in self.branch_names:
+                print(" Model: {}".format(branch))
+                print("   T \t <R̂>")
+                print("  --------------")
+                for temp in range(self.ntemps):
+                    print("   {:01d}\t{:3.2f}".format(temp, np.mean(Rhat_all_branches[branch][temp])))
+                print("\n")
+
+        return Rhat_all_branches
 
     @property
     def shape(self):

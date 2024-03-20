@@ -6,9 +6,9 @@ import numpy as np
 from copy import deepcopy
 
 try:
-    import cupy as xp
+    import cupy as cp
 except (ModuleNotFoundError, ImportError):
-    import numpy as xp
+    import numpy as cp
 
 __all__ = ["Move"]
 
@@ -89,17 +89,26 @@ class Move(object):
         self.num_proposals = 0
         self.time = 0
 
-        # change array library based on GPU usage
-        if use_gpu:
-            self.xp = xp
-        else:
-            self.xp = np
+        self.use_gpu = use_gpu
 
         # set the random seet of the library if desired
         if random_seed is not None:
             self.xp.random.seed(random_seed)
 
-        self.use_gpu = use_gpu
+    @property
+    def use_gpu(self):
+        return self._use_gpu
+
+    @use_gpu.setter
+    def use_gpu(self, use_gpu):
+        self._use_gpu = use_gpu
+
+    @property
+    def xp(self):
+        if self._use_gpu is None:
+            raise ValueError("use_gpu has not been set.")
+        xp = cp if self.use_gpu else np
+        return xp
 
     def _initialize_branch_setup(self, gibbs_sampling_setup, is_rj=False):
         """Initialize the gibbs setup properly."""
@@ -477,6 +486,8 @@ class Move(object):
             :class:`eryn.state.State`: ``old_state`` with accepted points added from ``new_state``.
 
         """
+
+        # TODO: update this to be use (tuples of inds) ??
         if subset is None:
             # subset of everything
             subset = np.tile(
@@ -648,11 +659,11 @@ class Move(object):
             name: branch.coords for name, branch in new_state.branches.items()
         }
 
-        temp_change_coords = {
-            name: new_coords[name] * (accepted_temp[:, :, None, None])
-            + old_coords[name] * (~accepted_temp[:, :, None, None])
-            for name in old_coords
-        }
+        # change to copy then fill due to issue of adding Nans
+        temp_change_coords = {name: old_coords[name].copy() for name in old_coords}
+
+        for name in temp_change_coords:
+            temp_change_coords[name][accepted_temp] = new_coords[name][accepted_temp]
 
         [
             np.put_along_axis(

@@ -17,7 +17,7 @@ To import eryn:
 from eryn.ensemble import EnsembleSampler
 ```
 
-See [examples notebook](https://github.com/mikekatz04/Eryn/blob/main/examples/Eryn_tutorial.ipynb) for more info.
+See [examples notebook](https://github.com/mikekatz04/Eryn/blob/main/examples/Eryn_tutorial.ipynb) for more info. You can also navigate the [Documentation](https://mikekatz04.github.io/Eryn/html/index.html) pages.
 
 
 ### Prerequisites
@@ -48,7 +48,7 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduc
 
 We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/BlackHolePerturbationToolkit/FastEMRIWaveforms/tags).
 
-Current Version: 1.1.3
+Current Version: 1.1.6
 
 ## Citation
 
