@@ -36,7 +36,7 @@ class AdjustStretchProposalScale(Update):
 
         self.time = 0
 
-    def __call__(self, iter, last_sample, sampler):
+    def __call__(self, iter, last_sample, sampler, idx=0):
 
         mean_af = 0.0
         change = 1.0
@@ -59,11 +59,12 @@ class AdjustStretchProposalScale(Update):
                     factor = self.max_change
                 change = 1 - factor
 
-            sampler.moves[0].a *= change
+            sampler.moves[idx].a *= change
 
         self.previously_accepted = sampler.backend.accepted[:, 0].copy()
-        print(
-            self.previously_accepted, "\n", mean_af, change, "\n", sampler.moves[0].a
-        )
+        if self.verbose:
+            print(
+                self.previously_accepted, "\n", mean_af, change, "\n", sampler.moves[0].a
+            )
         self.previous_iter = sampler.backend.iteration
         self.time += 1

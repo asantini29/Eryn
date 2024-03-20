@@ -420,7 +420,8 @@ class EnsembleSampler(object):
             self.has_reversible_jump = True
 
             try:
-                self.rj_moves, self.rj_weights = zip(*rj_moves)
+                #self.rj_moves, self.rj_weights = zip(*rj_moves)
+                self.rj_moves, self.rj_weights = [list(tmp) for tmp in zip(*rj_moves)]
             except TypeError:
                 self.rj_moves = rj_moves
                 self.rj_weights = np.ones(len(rj_moves))
@@ -893,8 +894,9 @@ class EnsembleSampler(object):
                         if tune:
                             move.tune(state, accepted_out)
 
-                    if self.has_reversible_jump:
+                    if (self.has_reversible_jump):
                         rj_accepted = np.zeros((self.ntemps, self.nwalkers))
+                        
                         for repeat in range(self.num_repeats_rj):
                             rj_move = self._random.choice(
                                 self.rj_moves, p=self.rj_weights
