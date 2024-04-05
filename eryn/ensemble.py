@@ -216,6 +216,7 @@ class EnsembleSampler(object):
         pool=None,
         moves=None,
         rj_moves=None,
+        rj_iterations=1,
         dr_moves=None,
         dr_max_iter=5,
         args=None,
@@ -443,7 +444,7 @@ class EnsembleSampler(object):
                     warnings.warn(
                         "If using revisible jump, using the Stretch Move for in-model proposals is not advised. It will run and work, but it will not be using the correct complientary group of parameters meaning it will most likely be very inefficient."
                     )
-
+        self.rj_iterations = rj_iterations #* propose a RJ move every rj_iterations
         # make sure moves have temperature module
         if self.temperature_control is not None:
             for move in self.moves:
@@ -906,26 +907,26 @@ class EnsembleSampler(object):
 
                     if (self.has_reversible_jump):
                         rj_accepted = np.zeros((self.ntemps, self.nwalkers))
-                        
-                        for repeat in range(self.num_repeats_rj):
-                            rj_move = self._random.choice(
-                                self.rj_moves, p=self.rj_weights
-                            )
+                        if _ % self.rj_iterations == 0: #! This is a hack to make sure RJ moves are not done every iteration
+                            for repeat in range(self.num_repeats_rj):
+                                rj_move = self._random.choice(
+                                    self.rj_moves, p=self.rj_weights
+                                )
 
-                            # Propose (Between models)
-                            state, rj_accepted_out = rj_move.propose(model, state)
-                            rj_accepted += rj_accepted_out
-                            # Again commenting out this section: We do not control temperature on RJ moves
-                            # if self.ntemps > 1:
-                            #     rj_swaps = rj_move.temperature_control.swaps_accepted
-                            # else:
-                            #     rj_swaps = None
-                            rj_swaps = None
+                                # Propose (Between models)
+                                state, rj_accepted_out = rj_move.propose(model, state)
+                                rj_accepted += rj_accepted_out
+                                # Again commenting out this section: We do not control temperature on RJ moves
+                                # if self.ntemps > 1:
+                                #     rj_swaps = rj_move.temperature_control.swaps_accepted
+                                # else:
+                                #     rj_swaps = None
+                                rj_swaps = None
 
-                            state.random_state = self.random_state
+                                state.random_state = self.random_state
 
-                            if tune:
-                                rj_move.tune(state, rj_accepted_out)
+                                if tune:
+                                    rj_move.tune(state, rj_accepted_out)
 
                     else:
                         rj_accepted = None
