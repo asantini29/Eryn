@@ -67,7 +67,7 @@ class GaussianMove(MHMove):
 
     """
 
-    def __init__(self, cov_all, mode="AM", factor=None, priors=None, indx_list=None, swap_walkers=None, sky_periodic=None, **kwargs):
+    def __init__(self, cov_all, mode="AM", factor=None, indx_list=None, sky_periodic=None, shift_value=None, **kwargs):
 
         self.all_proposal = {}
         
@@ -91,6 +91,9 @@ class GaussianMove(MHMove):
                         proposal = _proposal(cov, factor,"vector")
                     if mode=="AM":
                         proposal = AM_proposal(cov, factor, "vector")
+                    if mode=="DE":
+                        proposal = DE_proposal(cov, factor, "vector")
+                        
 
                 else:
                     raise ValueError("Invalid proposal scale dimensions")
@@ -101,14 +104,12 @@ class GaussianMove(MHMove):
                 proposal = _isotropic_proposal(np.sqrt(cov), factor,  "vector")
             self.all_proposal[name] = proposal
 
-        # priors to draw from
-        self.priors = priors
-        # swap walkers
-        self.swap_walkers = swap_walkers
         # propose in blocks
         self.indx_list = indx_list
-        
+        # ensure sky periodicity
         self.sky_periodic = sky_periodic
+        # add random shift (how often, param index as in self.indx_list, value to shift)
+        self.shift_value = shift_value
         super(GaussianMove, self).__init__(**kwargs)
 
     def get_proposal(self, branches_coords, random, branches_inds=None, **kwargs):
@@ -148,16 +149,10 @@ class GaussianMove(MHMove):
             q[name] = coords.copy()
 
             # get new points
-            # draw from the prior 10% of the time
             new_coords_tmp = coords[inds_here].copy()
             new_coords = coords[inds_here].copy()
             
-            if self.priors is not None:
-                # if np.random.uniform()>0.9:
-                for var in range(new_coords.shape[-1]):
-                    new_coords_tmp[:,var] = self.priors[name][var].rvs(size=new_coords[:,var].shape[0])
-            else:
-                new_coords_tmp = proposal_fn(coords[inds_here], random)[0]
+            new_coords_tmp = proposal_fn(coords[inds_here], random)[0]
             
             # swap walkers, this helps for the search phase
             if self.indx_list is not None:
@@ -169,6 +164,18 @@ class GaussianMove(MHMove):
             else:
                 new_coords = new_coords_tmp.copy()
             
+            # shift
+            if self.shift_value is not None:
+                # first value tells how often to shift, self.shift_value[0]=1, always
+                if np.random.uniform()<self.shift_value[0]:
+                    indx_list_here = np.asarray([el[1] for el in self.shift_value[1] if el[0]==name])
+                    nw = new_coords_tmp.shape[0]
+                    # list of numbers indicating wich group of parameters to change
+                    ind_to_chage = np.random.randint(len(indx_list_here),size=nw)
+                    random_number = np.random.choice([-1, 1])
+                    # add value
+                    new_coords[indx_list_here[ind_to_chage][:,0,:]] += random_number*self.shift_value[2]
+
             if self.sky_periodic:
                 indx_list_here = [el[1] for el in self.sky_periodic if el[0]==name]
                 nw = new_coords_tmp.shape[0]
@@ -177,20 +184,6 @@ class GaussianMove(MHMove):
                     ph = new_coords_tmp[:,indx_list_here[temp_ind][0]][:,1]
                     new_coords[:,indx_list_here[temp_ind][0]] = np.asarray(reflect_cosines_array(csth, ph)).T
                 
-            # jump in frequency
-            # if np.random.uniform()>0.9:
-            #     shape = new_coords[...,2].shape
-            #     new_coords[...,2] += np.sign(np.random.uniform(-1,1))*np.ones(shape)*np.log10(np.random.randint(1,4,size=shape))
-            #     new_coords[...,3] += np.sign(np.random.uniform(-1,1))*np.ones(shape)*np.log10(np.random.randint(1,4,size=shape))
-
-            # swap walkers, this helps for the search phase
-            if self.swap_walkers is not None:
-                if np.random.uniform()>self.swap_walkers:
-                    ind_shuffle = np.arange(new_coords.shape[0])
-                    np.random.shuffle(ind_shuffle)
-                    new_coords = new_coords[ind_shuffle].copy()
-            
-            
 
             # put into coords in proper location
             q[name][inds_here] = new_coords.copy()
@@ -212,7 +205,11 @@ class _isotropic_proposal(object):
         self.index = 0
         self.scale = scale
         self.svd = None
+        self.chain = None
         self.invscale = np.linalg.inv(np.linalg.cholesky(scale))
+        self.use_current_state = True
+        self.crossover = False
+        
         if factor is None:
             self._log_factor = None
         else:
@@ -264,22 +261,10 @@ class _proposal(_isotropic_proposal):
             np.zeros(len(self.scale)), self.scale, size=len(x0)
         )
 
-class eigproposal():
-    def __init__(self, cov):
-        self.w,self.v = np.linalg.eig(cov)
-
-    def __call__(self, x0, rng):
-        nw, nd = x0.shape
-        factors = rng.uniform(size=nw)
-        ind = rng.randint(nd,size=nw)
-
-        return x0 + (factors[None,:] * self.v[:,ind] / self.w[ind]).T, 1
-
-
-
 def propose_AM(x0, rng, svd, scale):
     """
-    Adaptive Jump Proposal
+    Adaptive Jump Proposal.
+    Single Component Adaptive Jump Proposal.
     """
     new_pos = x0.copy()
     nw, nd = new_pos.shape
@@ -287,37 +272,23 @@ def propose_AM(x0, rng, svd, scale):
 
     # adjust step size
     prob = rng.random()
-
-    # # large jump
-    # if prob > 0.97:
-    #     scale = 10.0
-
-    # # small jump
-    # elif prob > 0.9:
-    #     scale = 0.2
-
-    # # standard medium jump
-    # else:
-    #     scale = 1.0
-    
     
     # go in eigen basis
     y = np.dot(U.T,x0.T).T # np.asarray([np.dot(U.T, x0[i]) for i in range(nw)])
     # choose a random parameter in the uncorrelated basis
     ind_vec = np.arange(nd)
     
-
-    if np.random.uniform()>0.5:
-        # move along one component
+    if prob>0.5:
+        # move along only one uncorrelated direction SCAM
         np.random.shuffle(ind_vec)
         rand_j = ind_vec[:1]
     else:
-        # move along all
+        # move along all of them AM
         rand_j = ind_vec
     
     y[:,rand_j] += scale * np.random.normal(size=nw)[:,None] * np.sqrt(S[None,rand_j]) * 2.38 / np.sqrt(nd)
+    
     # go back to the basis
-    # if np.random.uniform()>0.5:
     new_pos = np.dot(U,y.T).T # np.asarray([np.dot(U, y[i]) for i in range(nw)]) 
 
     return new_pos
@@ -333,3 +304,69 @@ class AM_proposal(_isotropic_proposal):
         else:
             svd = self.svd
         return propose_AM(x0, rng, svd, self.get_factor(rng))
+
+
+def propose_DE(current_state, chain, F=0.5, CR=0.9, use_current_state=True, crossover=False):
+    """
+    Provides a proposal for MCMC using Differential Evolution (DE/rand/1).
+
+    Parameters:
+        current_state (numpy.ndarray): The current state of the MCMC chain. Shape: (n_walkers, n_params).
+        chain (numpy.ndarray): The chain from which to take the mutant. Shape: (n_mutants, n_params).
+        F (float): The differential weight (default is 0.5), in [0,2].
+        CR (float): The crossover probability (default is 0.9), in [0,1].
+
+    Returns:
+        numpy.ndarray: The proposed state. Shape: (n_walkers, n_params).
+    """
+    n_walkers, n_params = current_state.shape
+
+    # Randomly select three distinct indices for each walker
+    indices = np.random.choice(chain.shape[0], size=(chain.shape[0], 3), replace=True)
+    
+    # Generate mutant vectors using DE/rand/1
+    if use_current_state:
+        mutant_vectors = current_state + F * (current_state[indices[:, 1]] - current_state[indices[:, 2]])
+    else:
+        mutant_vectors = chain[indices[:, 0]] + F * (chain[indices[:, 1]] - chain[indices[:, 2]])
+
+    # Perform crossover with the current state to create the proposed state
+    if crossover:
+        crossover_mask = (np.random.rand(n_walkers, n_params) <= CR) | (np.arange(n_params) == np.random.randint(n_params, size=(n_walkers, 1)))
+    else:
+        # to update all
+        crossover_mask = np.ones((n_walkers, n_params), dtype=bool)
+    proposed_state = np.where(crossover_mask, mutant_vectors, current_state)
+    
+
+    return proposed_state
+
+class DE_proposal(_isotropic_proposal):
+
+    allowed_modes = ["vector"]
+    
+    def get_factor(self, rng):
+        if self._log_factor is None:
+            return 1.0
+        return np.exp( rng.uniform( -self._log_factor, 0.0 ) )
+    
+    def get_updated_vector(self, rng, x0):
+        # get jump scale size
+        prob = rng.random()
+
+        # scaling
+        if prob > 0.5:
+            # random in range
+            F = self.get_factor(rng)
+            CR = np.random.uniform(0.5,1.0)
+        else:
+            # default
+            F = 0.5
+            CR = 0.9
+        
+        if self.chain is None:
+            # use current state to update
+            return propose_DE(x0, x0.copy(), F=F, CR=CR, use_current_state=self.use_current_state, crossover=self.crossover)
+        else:
+            # take from the pool
+            return propose_DE(x0, self.chain, F=F, CR=CR, use_current_state=self.use_current_state, crossover=self.crossover)
