@@ -217,6 +217,7 @@ class EnsembleSampler(object):
         moves=None,
         rj_moves=None,
         rj_iterations=1,
+        skip_reversible_jump=False,
         dr_moves=None,
         dr_max_iter=5,
         args=None,
@@ -445,6 +446,7 @@ class EnsembleSampler(object):
                         "If using revisible jump, using the Stretch Move for in-model proposals is not advised. It will run and work, but it will not be using the correct complientary group of parameters meaning it will most likely be very inefficient."
                     )
         self.rj_iterations = rj_iterations #* propose a RJ move every rj_iterations
+        self.skip_reversible_jump = skip_reversible_jump #* skip RJ moves for these iterations
         # make sure moves have temperature module
         if self.temperature_control is not None:
             for move in self.moves:
@@ -688,6 +690,16 @@ class EnsembleSampler(object):
     def iteration(self):
         return self.backend.iteration
 
+    @property
+    def skip_reversible_jump(self):
+        return self._skip_reversible_jump
+    
+    @skip_reversible_jump.setter
+    def skip_reversible_jump(self, skip_reversible_jump):
+        if not isinstance(skip_reversible_jump, bool):
+            raise ValueError("skip_reversible_jump must be a boolean.")
+        self._skip_reversible_jump = skip_reversible_jump
+
     def reset(self, **info):
         """
         Reset the backend.
@@ -927,7 +939,8 @@ class EnsembleSampler(object):
 
                                 if tune:
                                     rj_move.tune(state, rj_accepted_out)
-
+                    elif self.skip_reversible_jump:
+                        rj_accepted = np.zeros((self.ntemps, self.nwalkers))
                     else:
                         rj_accepted = None
                         rj_swaps = None
