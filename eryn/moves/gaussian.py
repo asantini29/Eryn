@@ -190,10 +190,24 @@ class GaussianMove(MHMove):
 
         # handle periodic parameters
         if self.periodic is not None:
-            for name, tmp in q.items():
-                ntemps, nwalkers, nleaves_max, ndim = tmp.shape
-                q[name] = self.periodic.wrap({name: tmp.reshape(ntemps * nwalkers, nleaves_max, ndim)})
-                q[name] = tmp.reshape(ntemps, nwalkers, nleaves_max, ndim)
+            q = self.periodic.wrap(
+                {
+                    name: tmp.reshape((ntemps * nwalkers,) + tmp.shape[-2:])
+                    for name, tmp in q.items()
+                },
+                xp=self.xp,
+            )
+
+            q = {
+                name: tmp.reshape(
+                    (
+                        ntemps,
+                        nwalkers,
+                    )
+                    + tmp.shape[-2:]
+                )
+                for name, tmp in q.items()
+            }
 
         return q, np.zeros((ntemps, nwalkers))
 
