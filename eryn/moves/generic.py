@@ -57,6 +57,7 @@ class ChainContainer:
         """
         Updates the covariance matrix of the chain.
         """
+        #TODO: consider the temperatures
         chain_cov = {}
         chain_svd = {}
         for name, chain in self.chain.items():
@@ -87,15 +88,25 @@ class ChainContainer:
             T (int): The index of the temperature to use for the update (default is 0).
         """
 
+        if isinstance(T, int):
+            ntemps = 1
+        
+        elif isinstance(T, slice):
+            ntemps = len(range(*T.indices(self.sampler.ntemps)))
+
+        else:
+            raise ValueError("T should be either an integer or a slice.")
+
         if self.sampler is None:
             if new_chain is not None:
                 self.chain = new_chain
             else:
                 warnings.warn("Neither sampler or new chain provided to update the current chain.")
-        else:        
-            self.chain = self.sampler.get_chain()[:self.buffer_size, T]
+        else:       
+            branch_names = self.sampler.branch_names 
+            self.chain = {name: self.sampler.get_chain()[:self.buffer_size, T].reshape(-1, ntemps) for name in branch_names}
 
-    def update(self, T=0):
+    def update(self, T=slice(0, 1)):
         """
         Updates the chain container by updating the chain, covariance, and mean.
         """
@@ -152,9 +163,11 @@ class CustomProposal(MHMove):
             tuple: (Proposed coordinates, factors) -> (dict, np.ndarray)
         """
 
-        self.chain_container.update()
+        self.chain_container.update() #? this may go directly inside the proposal function
 
         q = {}
+        ntemps, nwalkers, nleaves_max, ndim = branches_coords[list(branches_coords.keys())[0]].shape
+        factors = np.zeros(shape=(ntemps, nwalkers))
 
         for name, coords in zip(branches_coords.keys(), branches_coords.values()):
             ntemps, nwalkers, nleaves_max, ndim = coords.shape
@@ -173,8 +186,12 @@ class CustomProposal(MHMove):
             q[name] = coords.copy()
 
             # get new points
-            new_coords, factors = proposal_fn(coords[inds_here], random)
+            new_coords, factors_tmp = proposal_fn(coords[inds_here], random)
 
+            # update factors
+            factors += factors_tmp
+
+            # update coords
             q[name][inds_here] = new_coords.copy()
 
         return q, factors

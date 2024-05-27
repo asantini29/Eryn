@@ -42,10 +42,10 @@ def reflect_cosines_array(cos_ins,angle_ins,rotfac=np.pi,modfac=2*np.pi):
 class GaussianMove(MHMove):
     """A Metropolis step with a Gaussian proposal function.
 
-    This class is heavily based on the same class in ``emcee``.
+    This class is heavily based on the same class in ``emcee``. 
 
     Args:
-        cov (dict): The covariance of the proposal function. The keys are branch names and the
+        cov (dict): The covariance of the proposal function. The keys are branch names and the 
             values are covariance information. This information can be provided as a scalar,
             vector, or matrix and the proposal will be assumed isotropic,
             axis-aligned, or general, respectively.
@@ -190,29 +190,16 @@ class GaussianMove(MHMove):
 
         # handle periodic parameters
         if self.periodic is not None:
-            q = self.periodic.wrap(
-                {
-                    name: tmp.reshape((ntemps * nwalkers,) + tmp.shape[-2:])
-                    for name, tmp in q.items()
-                },
-                xp=self.xp,
-            )
-
-            q = {
-                name: tmp.reshape(
-                    (
-                        ntemps,
-                        nwalkers,
-                    )
-                    + tmp.shape[-2:]
-                )
-                for name, tmp in q.items()
-            }
+            for name, tmp in q.items():
+                ntemps, nwalkers, nleaves_max, ndim = tmp.shape
+                q[name] = self.periodic.wrap({name: tmp.reshape(ntemps * nwalkers, nleaves_max, ndim)})
+                q[name] = tmp.reshape(ntemps, nwalkers, nleaves_max, ndim)
 
         return q, np.zeros((ntemps, nwalkers))
 
 
 class _isotropic_proposal(object):
+
     allowed_modes = ["vector", "random", "sequential"]
 
     def __init__(self, scale, factor, mode):
@@ -268,6 +255,7 @@ class _diagonal_proposal(_isotropic_proposal):
 
 
 class _proposal(_isotropic_proposal):
+
     allowed_modes = ["vector"]
 
     def get_updated_vector(self, rng, x0):
