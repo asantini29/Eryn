@@ -35,9 +35,9 @@ class ChainContainer:
     """
 
     sampler: object = None
-    chain: np.ndarray = None
-    chain_cov: np.ndarray = None
-    chain_mean: np.ndarray = None
+    chain: dict = None
+    chain_cov: dict = None
+    chain_mean: dict = None
     buffer_size: int = 1000
 
     def __post_init__(self):
@@ -46,6 +46,7 @@ class ChainContainer:
         """
         if self.sampler is not None:
             self.branches = self.sampler.branch_names
+            self.chain = self.sampler.get_chain()
 
         if self.chain is not None:
             if self.chain_cov is None:
@@ -80,12 +81,14 @@ class ChainContainer:
         
         self.chain_mean = chain_mean
 
-    def update_chain(self, new_chain=None, T=0):
+    def update_chain(self, new_chain=None, T=0, reshape=False):
         """
         Updates the chain by retrieving samples from the sampler.
 
         Args:
             T (int): The index of the temperature to use for the update (default is 0).
+            new_chain (np.ndarray): The new chain to use for the update (default is ``None``).
+            reshape (bool): Whether to reshape the chain samples (default is ``False``).
         """
 
         if isinstance(T, int):
@@ -104,13 +107,18 @@ class ChainContainer:
                 warnings.warn("Neither sampler or new chain provided to update the current chain.")
         else:       
             branch_names = self.sampler.branch_names 
-            self.chain = {name: self.sampler.get_chain()[:self.buffer_size, T].reshape(-1, ntemps) for name in branch_names}
+            if reshape:
+                self.chain = {name: self.sampler.get_chain()[name][-self.buffer_size:, T].reshape(-1, self.sampler.ndims[name]) for name in branch_names}
+            
+            else:
+                #breakpoint()
+                self.chain = {name: self.sampler.get_chain()[name][-self.buffer_size:, T] for name in branch_names}
 
-    def update(self, T=slice(0, 1)):
+    def update(self, T=slice(0, 1), reshape=False):
         """
         Updates the chain container by updating the chain, covariance, and mean.
         """
-        self.update_chain(T=T)
+        self.update_chain(T=T, reshape=reshape)
         self.update_cov()
         self.update_mean()
 
@@ -163,7 +171,7 @@ class CustomProposal(MHMove):
             tuple: (Proposed coordinates, factors) -> (dict, np.ndarray)
         """
 
-        self.chain_container.update() #? this may go directly inside the proposal function
+        #self.chain_container.update() #? this may go directly inside the proposal function
 
         q = {}
         ntemps, nwalkers, nleaves_max, ndim = branches_coords[list(branches_coords.keys())[0]].shape
@@ -195,3 +203,5 @@ class CustomProposal(MHMove):
             q[name][inds_here] = new_coords.copy()
 
         return q, factors
+
+
