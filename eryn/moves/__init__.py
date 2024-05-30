@@ -19,6 +19,8 @@ from .multipletry import MultipleTryMove
 from .group import GroupMove
 from .groupstretch import GroupStretchMove
 from .combine import CombineMove
+from .de import DEMove
+from .generic import ChainContainer, CustomProposal
 
 # from .basicmodelswaprj import BasicSymmetricModelSwapRJMove
 from .mtdistgen import MTDistGenMove
@@ -40,4 +42,7 @@ __all__ = [
     "GroupStretchMove",
     "CombineMove",
     "DIMEMove"
+    "ChainContainer",
+    "CustomProposal",
+    "DEMove",
 ]
