@@ -95,6 +95,9 @@ class Move(object):
         if random_seed is not None:
             self.xp.random.seed(random_seed)
 
+        if 'label' in kwargs:
+            self.label = kwargs['label']
+
     @property
     def use_gpu(self):
         return self._use_gpu

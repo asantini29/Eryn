@@ -203,5 +203,3 @@ class CustomProposal(MHMove):
             q[name][inds_here] = new_coords.copy()
 
         return q, factors
-
-

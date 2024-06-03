@@ -65,8 +65,12 @@ class DEMove(MHMove):
         
         if self.use_current_state:
             mutant_vectors = current_state + F * (chain[indices[:, 1]] - chain[indices[:, 2]])
+            # Add a small random number to each parameter
+            epsilon = mutant_vectors * 1e-4
+            mutant_vectors += epsilon * np.random.randn(n_walkers, n_params)
         else:
             mutant_vectors = chain[indices[:, 0]] + F * (chain[indices[:, 1]] - chain[indices[:, 2]])
+
 
         # Perform crossover with the current state to create the proposed state
         if self.crossover:
