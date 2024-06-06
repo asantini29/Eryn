@@ -38,7 +38,7 @@ class ChainContainer:
     chain: dict = None
     chain_cov: dict = None
     chain_mean: dict = None
-    buffer_size: int = 1000
+    buffer_size: int = 500
 
     def __post_init__(self):
         """

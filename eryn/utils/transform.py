@@ -109,6 +109,7 @@ class TransformContainer:
         if self.base_transforms is not None:
             params_temp = params.copy() if copy else params
             params_temp = params_temp.T
+            
             # regular transforms
             for ind, trans_fn in self.base_transforms["single_param"].items():
                 params_temp[ind] = trans_fn(params_temp[ind])

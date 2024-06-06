@@ -436,6 +436,9 @@ class EnsembleSampler(object):
 
         # adjust rj weights properly
         if self.has_reversible_jump:
+
+            self.nleaves_min = nleaves_min
+            
             self.rj_weights = np.atleast_1d(self.rj_weights).astype(float)
             self.rj_weights /= np.sum(self.rj_weights)
 

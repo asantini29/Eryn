@@ -22,16 +22,18 @@ class DEMove(MHMove):
             CR (float, optional): The differential evolution crossover rate (default is 0.9).
             use_current_state (bool, optional): Whether to use the current state as the chain (default is ``False``).
             crossover (bool, optional): Whether to use crossover (default is ``True``).
+            n_iter (int, optional): The number of iterations to run before updating the chain (default is 500).
             **kwargs: Additional keyword arguments for parent class.
         
         """
     
-    def __init__(self, chain_container=None, factor=None, sky_periodic=None, F=0.5, CR=0.9, use_current_state=True, crossover=True, **kwargs):
+    def __init__(self, chain_container=None, factor=None, sky_periodic=None, F=0.5, CR=0.9, use_current_state=True, crossover=True, n_iter=500, **kwargs):
     
         self.chain_container = chain_container
         if self.chain_container is None:
             warnings.warn("No chain container provided. The current state will be used for the proposal. This will not satisfy detailed balance.")
 
+        self.n_iter = n_iter
         self.sky_periodic = sky_periodic
 
         self.F = F
@@ -61,13 +63,16 @@ class DEMove(MHMove):
         n_walkers, n_params = current_state.shape
 
         # Randomly select three distinct indices for each walker
-        indices = np.random.choice(chain.shape[0], size=(chain.shape[0], 3), replace=True)
+        indices = np.random.choice(chain.shape[0], size=(chain.shape[0], 3), replace=True)      
+
+        while np.any(np.diff(indices, axis=1) == 0):
+            indices = np.random.choice(chain.shape[0], size=(chain.shape[0], 3), replace=True)
         
         if self.use_current_state:
             mutant_vectors = current_state + F * (chain[indices[:, 1]] - chain[indices[:, 2]])
             # Add a small random number to each parameter
-            epsilon = mutant_vectors * 1e-4
-            mutant_vectors += epsilon * np.random.randn(n_walkers, n_params)
+            # epsilon = mutant_vectors * 1e-4
+            # mutant_vectors += epsilon * np.random.randn(n_walkers, n_params)
         else:
             mutant_vectors = chain[indices[:, 0]] + F * (chain[indices[:, 1]] - chain[indices[:, 2]])
 
@@ -136,10 +141,10 @@ class DEMove(MHMove):
                 chain = coords
 
             else:
-                if self.chain_container.sampler.iteration > 0:
+                if self.chain_container.sampler.iteration > 0 and self.chain_container.sampler.iteration % self.n_iter == 0:
                     self.chain_container.update_chain(T=slice(0, ntemps), reshape=False)
                     chain = self.chain_container.chain[name]
-                    # randomly select a previous step from the chain
+                    #* randomly select a previous step from the chain
                     step = random.randint(0, chain.shape[0])
                     chain = chain[step]
                 
