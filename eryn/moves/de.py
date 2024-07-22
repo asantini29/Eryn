@@ -27,7 +27,7 @@ class DEMove(MHMove):
         
         """
     
-    def __init__(self, chain_container=None, factor=None, sky_periodic=None, F=0.5, CR=0.9, use_current_state=True, crossover=True, n_iter=500, **kwargs):
+    def __init__(self, chain_container=None, factor=None, sky_periodic=None, F=0.5, CR=0.9, sigma=1e-5, g0=None, ndims=None, use_current_state=True, crossover=True, n_iter=500, **kwargs):
     
         self.chain_container = chain_container
         if self.chain_container is None:
@@ -38,6 +38,20 @@ class DEMove(MHMove):
 
         self.F = F
         self.CR = CR
+        self.sigma = sigma
+
+        if isinstance(g0, dict):
+            self.g0 = g0
+
+        elif isinstance(ndims, dict):
+            self.g0 = {k: 2.38/np.sqrt(2*ndims[k]) for k in ndims.keys()}
+        
+        elif isinstance(ndims, int):
+            self.g0 = 2.38/np.sqrt(2*ndims)
+
+        else:
+            raise ValueError("Either 'g0' or 'ndims' must be provided.")
+
         self.use_current_state = use_current_state
         if not self.use_current_state:
             warnings.warn("Not using the current state for the proposal. This will not satisfy detailed balance.")
@@ -70,9 +84,6 @@ class DEMove(MHMove):
         
         if self.use_current_state:
             mutant_vectors = current_state + F * (chain[indices[:, 1]] - chain[indices[:, 2]])
-            # Add a small random number to each parameter
-            # epsilon = mutant_vectors * 1e-4
-            # mutant_vectors += epsilon * np.random.randn(n_walkers, n_params)
         else:
             mutant_vectors = chain[indices[:, 0]] + F * (chain[indices[:, 1]] - chain[indices[:, 2]])
 
@@ -88,19 +99,23 @@ class DEMove(MHMove):
 
         return proposed_state
     
-    def get_updated_vector(self, rng, x0, chain):
+    def get_updated_vector(self, rng, g0, x0, chain):
         
         prob = rng.random()
 
         if prob > 0.5:
-            F = self.get_factor(rng)
+            #F = self.get_factor(rng)
             CR = np.random.uniform(0.5, 1.0)
 
         else:
-            F = self.F
+            #F = self.F
             CR = self.CR
         
+        F = g0 * (1 + self.sigma * rng.normal(0, 1))
+
         return self.propose_DE(current_state=x0, chain=chain, F=F, CR=CR)
+    
+    
 
 
     def get_proposal(self, branches_coords, random, branches_inds=None, **kwargs):
@@ -143,16 +158,20 @@ class DEMove(MHMove):
             else:
                 if self.chain_container.sampler.iteration > 0 and self.chain_container.sampler.iteration % self.n_iter == 0:
                     self.chain_container.update_chain(T=slice(0, ntemps), reshape=False)
+
+                if self.chain_container.chain is None:
+                    chain = coords
+                
+                else:
                     chain = self.chain_container.chain[name]
                     #* randomly select a previous step from the chain
                     step = random.randint(0, chain.shape[0])
                     chain = chain[step]
-                
-                else: 
-                    chain = coords
+
 
             # get new points
-            proposed_coords = self.get_updated_vector(random, coords[inds_here], chain[inds_here])
+            g0 = self.g0[name] if isinstance(self.g0, dict) else self.g0
+            proposed_coords = self.get_updated_vector(random, g0, coords[inds_here], chain[inds_here])
 
             new_coords = proposed_coords.copy()
 

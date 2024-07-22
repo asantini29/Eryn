@@ -299,6 +299,11 @@ def propose_AM(x0, rng, svd, scale):
 class AM_proposal(_isotropic_proposal):
 
     allowed_modes = ["vector"]
+
+    def get_factor(self, rng):
+        if self._log_factor is None:
+            return 1.0
+        return np.exp( rng.uniform( -self._log_factor, 0.0 ) )
     
     def get_updated_vector(self, rng, x0):
         if self.svd is None:
