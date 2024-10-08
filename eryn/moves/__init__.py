@@ -2,7 +2,7 @@
 
 # from .de import DEMove
 # from .de_snooker import DESnookerMove
-from .gaussian import GaussianMove
+from .gaussian import GaussianMove, GaussianMixtureProposal
 
 # from .kde import KDEMove
 from .mh import MHMove
@@ -19,7 +19,7 @@ from .multipletry import MultipleTryMove
 from .group import GroupMove
 from .groupstretch import GroupStretchMove
 from .combine import CombineMove
-from .de import DEMove
+from .de import DEMove, DEMove_emcee, GroupDEMove
 from .generic import ChainContainer, CustomProposal
 
 # from .basicmodelswaprj import BasicSymmetricModelSwapRJMove

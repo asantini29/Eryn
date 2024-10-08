@@ -47,6 +47,7 @@ class ChainContainer:
         if self.sampler is not None:
             self.branches = self.sampler.branch_names
             self.chain = self.sampler.get_chain()
+            self.inds = self.sampler.get_inds()
 
         if self.chain is not None:
             if self.chain_cov is None:
@@ -109,10 +110,12 @@ class ChainContainer:
             branch_names = self.sampler.branch_names 
             if reshape:
                 self.chain = {name: self.sampler.get_chain()[name][-self.buffer_size:, T].reshape(-1, self.sampler.ndims[name]) for name in branch_names}
+                self.inds = {name: self.sampler.get_inds()[name][-self.buffer_size:, T].reshape(-1) for name in branch_names}
             
             else:
                 #breakpoint()
                 self.chain = {name: self.sampler.get_chain()[name][-self.buffer_size:, T] for name in branch_names}
+                self.inds = {name: self.sampler.get_inds()[name][-self.buffer_size:, T] for name in branch_names}
 
     def update(self, T=slice(0, 1), reshape=False):
         """

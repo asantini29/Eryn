@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+try:
+    from sklearn.mixture import BayesianGaussianMixture
+except (ImportError, ModuleNotFoundError):
+    pass
 
 from .mh import MHMove
 
@@ -202,7 +206,7 @@ class _isotropic_proposal(object):
 
     allowed_modes = ["vector", "random", "sequential"]
 
-    def __init__(self, scale, factor, mode):
+    def __init__(self, scale, factor, mode, p_scam=0.5):
         self.index = 0
         self.scale = scale
         self.svd = None
@@ -210,6 +214,7 @@ class _isotropic_proposal(object):
         self.invscale = np.linalg.inv(np.linalg.cholesky(scale))
         self.use_current_state = True
         self.crossover = False
+        self.p_scam = p_scam
         
         if factor is None:
             self._log_factor = None
@@ -229,7 +234,7 @@ class _isotropic_proposal(object):
     def get_factor(self, rng):
         if self._log_factor is None:
             return 1.0
-        return np.exp(rng.uniform(-self._log_factor, self._log_factor))
+        return np.exp(rng.uniform(-self._log_factor, 0))
 
     def get_updated_vector(self, rng, x0):
         return x0 + self.get_factor(rng) * self.scale * rng.randn(*(x0.shape))
@@ -263,7 +268,7 @@ class _proposal(_isotropic_proposal):
             np.zeros(len(self.scale)), self.scale, size=len(x0)
         )
 
-def propose_AM(x0, rng, svd, scale):
+def propose_AM(x0, rng, svd, scale, p_scam=0.5):
     """
     Adaptive Jump Proposal.
     Single Component Adaptive Jump Proposal.
@@ -276,22 +281,25 @@ def propose_AM(x0, rng, svd, scale):
     prob = rng.random()
     
     # go in eigen basis
-    y = np.dot(U.T,x0.T).T # np.asarray([np.dot(U.T, x0[i]) for i in range(nw)])
+    #y = np.dot(U.T,x0.T).T # np.asarray([np.dot(U.T, x0[i]) for i in range(nw)])
+    y = np.einsum('...ji,...j->...i', U, x0)
     # choose a random parameter in the uncorrelated basis
     ind_vec = np.arange(nd)
     
-    if prob>0.5:
+    if prob < p_scam:
         # move along only one uncorrelated direction SCAM
         np.random.shuffle(ind_vec)
         rand_j = ind_vec[:1]
     else:
         # move along all of them AM
         rand_j = ind_vec
-    
-    y[:,rand_j] += scale * np.random.normal(size=nw)[:,None] * np.sqrt(S[None,rand_j]) * 2.38 / np.sqrt(nd)
+    S_here = S[None,rand_j] if len(S.shape)==1 else S[:, rand_j]
+    y[:,rand_j] += scale * np.random.normal(size=nw)[:,None] * np.sqrt(S_here)# * 2.38 / np.sqrt(nd)
+
     
     # go back to the basis
-    new_pos = np.dot(U,y.T).T # np.asarray([np.dot(U, y[i]) for i in range(nw)]) 
+    #new_pos = np.dot(U,y.T).T # np.asarray([np.dot(U, y[i]) for i in range(nw)]) 
+    new_pos = np.einsum('...ij,...j->...i', U, y)
 
     return new_pos
 
@@ -310,7 +318,7 @@ class AM_proposal(_isotropic_proposal):
             svd = np.linalg.svd(self.scale)
         else:
             svd = self.svd
-        return propose_AM(x0, rng, svd, self.get_factor(rng))
+        return propose_AM(x0, rng, svd, self.get_factor(rng), p_scam=self.p_scam)
 
 
 def propose_DE(current_state, chain, F=0.5, CR=0.9, use_current_state=True, crossover=False):
@@ -377,3 +385,183 @@ class DE_proposal(_isotropic_proposal):
         else:
             # take from the pool
             return propose_DE(x0, self.chain, F=F, CR=CR, use_current_state=self.use_current_state, crossover=self.crossover)
+
+class GaussianMixtureProposal(MHMove):
+    '''
+    Proposal function for the Gaussian Mixture model.
+    
+    It uses the GaussianMove class to propose new samples for the parameters of the model and the BayesianGaussianMixture 
+    function to fit for the number of gaussians.
+    '''
+
+    def __init__(self, cov_all, mode="AM", factor=None, indx_list=None, sky_periodic=None, shift_value=None, n_components={}, dpgmm_kwargs={}, p_scam=0.5, lr=0.1, **kwargs):
+        self.all_proposal = {}
+        
+        for name, cov in cov_all.items():
+            
+            ndim = cov.shape[0]
+            
+            if mode=="Gaussian":
+                proposal = _proposal(cov, factor,"vector")
+
+            elif mode=="AM":
+                proposal = AM_proposal(cov, factor, "vector", p_scam=p_scam)
+
+            else:
+                raise ValueError("Invalid proposal mode: ", mode)
+
+            self.all_proposal[name] = proposal
+
+        # propose in blocks
+        self.indx_list = indx_list
+        # ensure sky periodicity
+        self.sky_periodic = sky_periodic
+        # add random shift (how often, param index as in self.indx_list, value to shift)
+        self.shift_value = shift_value
+
+        self.dpgmms = {}
+        self.target_acceptance = 0.234
+        self.lr = lr
+
+        for key, value in n_components.items():
+            if value is None:
+                n_components[key] = 1
+            n_components_here = n_components[key]
+            weight_concentration_prior = 0.5 / n_components_here
+            self.dpgmms[key] = BayesianGaussianMixture(n_components=n_components_here, warm_start=True, tol=1e-5, weight_concentration_prior=weight_concentration_prior, **dpgmm_kwargs)
+
+        self.fitted = False
+
+        super(GaussianMixtureProposal, self).__init__(**kwargs)
+
+    def get_clean_chain(self, coords, ndim, temp=0):
+        """
+        Simple utility function to extract the squeezed chains for all the parameters
+        """
+        naninds = np.logical_not(np.isnan(coords[:, temp, :, :, 0].flatten()))
+        samples_in = np.zeros((coords[:, temp, :, :, 0].flatten()[naninds].shape[0], ndim))  # init the chains to plot
+        # get the samples to plot
+        for d in range(ndim):
+            givenparam = coords[:, temp, :, :, d].flatten()
+            samples_in[:, d] = givenparam[
+                np.logical_not(np.isnan(givenparam))
+            ]  # Discard the NaNs, each time they change the shape of the samples_in
+        return samples_in
+
+    def fit(self, coords, ndim):
+
+        acceptance = np.mean(self.acceptance_fraction[0])
+
+        print(f"Acceptance: {acceptance}")
+
+        self.factor = (acceptance / self.target_acceptance)
+
+        for key in coords.keys():
+            samples_in = self.get_clean_chain(coords[key], ndim[key], temp=0)
+            converged = False
+            while not converged:
+                self.dpgmms[key].fit(samples_in)
+                converged = self.dpgmms[key].converged_
+                if not converged:
+                    print(f"Retrying fitting {key}...")
+
+                    self.dpgmms[key].max_iter *= 2
+                
+        self.fitted = True
+
+    def get_proposal(self, branches_coords, random, branches_inds=None, **kwargs):
+        """Get proposal from Gaussian distribution
+
+        Args:
+            branches_coords (dict): Keys are ``branch_names`` and values are
+                np.ndarray[ntemps, nwalkers, nleaves_max, ndim] representing
+                coordinates for walkers.
+            random (object): Current random state object.
+            branches_inds (dict, optional): Keys are ``branch_names`` and values are
+                np.ndarray[ntemps, nwalkers, nleaves_max] representing which
+                leaves are currently being used. (default: ``None``)
+            **kwargs (ignored): This is added for compatibility. It is ignored in this function.
+
+        Returns:
+            tuple: (Proposed coordinates, factors) -> (dict, np.ndarray)
+
+        """
+
+        # initialize ouput
+        q = {}
+        for name, coords in zip(branches_coords.keys(), branches_coords.values()):
+            ntemps, nwalkers, nleaves_max, ndim = coords.shape
+
+            # setup inds accordingly
+            if branches_inds is None:
+                inds = np.ones((ntemps, nwalkers, nleaves_max), dtype=bool)
+            else:
+                inds = branches_inds[name]
+
+            # get the proposal for this branch
+            proposal_fn = self.all_proposal[name]
+            inds_here = np.where(inds == True)
+
+            # copy coords
+            q[name] = coords.copy()
+
+            # get new points
+            new_coords_tmp = coords[inds_here].copy()
+            new_coords = coords[inds_here].copy()
+            
+            if  self.fitted:
+                labels = self.dpgmms[name].predict(coords[inds_here])
+                covs = self.dpgmms[name].covariances_[labels] * 2.38**2 / ndim
+                svds = np.linalg.svd(covs)
+
+                proposal_fn.scale = covs
+                proposal_fn.svd = svds
+
+            new_coords_tmp = proposal_fn(coords[inds_here], random)[0] #! what I have to change if fitted
+
+            # swap walkers, this helps for the search phase
+            if self.indx_list is not None:
+                indx_list_here = np.asarray([el[1] for el in self.indx_list if el[0]==name])
+                nw = new_coords_tmp.shape[0]
+                # list of numbers indicating wich group of parameters to change
+                ind_to_chage = np.random.randint(len(indx_list_here),size=nw)
+                new_coords[indx_list_here[ind_to_chage][:,0,:]] = new_coords_tmp[indx_list_here[ind_to_chage][:,0,:]]
+            else:
+                new_coords = new_coords_tmp.copy()
+            
+            # shift
+            if self.shift_value is not None:
+                # first value tells how often to shift, self.shift_value[0]=1, always
+                if np.random.uniform()<self.shift_value[0]:
+                    indx_list_here = np.asarray([el[1] for el in self.shift_value[1] if el[0]==name])
+                    nw = new_coords_tmp.shape[0]
+                    # list of numbers indicating wich group of parameters to change
+                    ind_to_chage = np.random.randint(len(indx_list_here),size=nw)
+                    random_number = np.random.choice([-1, 1])
+                    # add value
+                    new_coords[indx_list_here[ind_to_chage][:,0,:]] += random_number*self.shift_value[2]
+
+            if self.sky_periodic:
+                indx_list_here = [el[1] for el in self.sky_periodic if el[0]==name]
+                nw = new_coords_tmp.shape[0]
+                for temp_ind in range(len(indx_list_here)):
+                    csth = new_coords_tmp[:,indx_list_here[temp_ind][0]][:,0]
+                    ph = new_coords_tmp[:,indx_list_here[temp_ind][0]][:,1]
+                    new_coords[:,indx_list_here[temp_ind][0]] = np.asarray(reflect_cosines_array(csth, ph)).T
+                
+
+            # put into coords in proper location
+            q[name][inds_here] = new_coords.copy()
+
+        # handle periodic parameters
+        if self.periodic is not None:
+            for name, tmp in q.items():
+                ntemps, nwalkers, nleaves_max, ndim = tmp.shape
+                q[name] = self.periodic.wrap({name: tmp.reshape(ntemps * nwalkers, nleaves_max, ndim)})
+                q[name] = tmp.reshape(ntemps, nwalkers, nleaves_max, ndim)
+
+        return q, np.zeros((ntemps, nwalkers))
+            
+                
+
+    
