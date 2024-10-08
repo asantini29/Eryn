@@ -97,9 +97,9 @@ class EnsembleSampler(object):
             prior value with shape ``(ntemps, nwalkers)``.
         provide_groups (bool, optional): If ``True``, provide groups as described in ``log_like_fn`` above.
             A group parameter is added for each branch. (default: ``False``)
-        provide_supplimental (bool, optional): If ``True``, it will provide keyword arguments to
+        provide_supplemental (bool, optional): If ``True``, it will provide keyword arguments to
             the Likelihood function: ``supps`` and ``branch_supps``. Please see the `Tutorial <https://mikekatz04.github.io/Eryn/html/tutorial/Eryn_tutorial.html#>`_
-            and :class:`eryn.state.BranchSupplimental` for more information.
+            and :class:`eryn.state.BranchSupplemental` for more information.
         tempering_kwargs (dict, optional): Keyword arguments for initialization of the
             tempering class: :class:`eryn.moves.tempering.TemperatureControl`.  (default: ``{}``)
         branch_names (list, optional): List of branch names. If ``None``, models will be assigned
@@ -126,12 +126,19 @@ class EnsembleSampler(object):
             move from this list (optionally with weights) for each proposal.
             If ``None``, the default will be :class:`StretchMove`.
             (default: ``None``)
-        rj_moves (list or object, optional): If ``None`` or ``False``, reversible jump will not be included in the run.
+        rj_moves (list or object or bool or str, optional): If ``None`` or ``False``, reversible jump will not be included in the run.
             This can be a single move object, a list of moves,
             or a "weighted" list of the form ``[(eryn.moves.DistributionGenerateRJ(),
             0.1), ...]``. When running, the sampler will randomly select a
             move from this list (optionally with weights) for each proposal.
-            If ``True``, it defaults to :class:`DistributionGenerateRJ`.
+            If ``True``, it defaults to :class:`DistributionGenerateRJ`. When running just the :class:`DistributionGenerateRJ`
+            with multiple branches, it will propose changes to all branhces simultaneously.
+            When running with more than one branch, useful options for ``rj_moves`` are ``"iterate_branches"``,
+            ``"separate_branches"``, or ``"together"``. If ``rj_moves == "iterate_branches"``, sample one branch by one branch in order of
+            the branch names. This occurs within one RJ proposal, for each RJ proposal. If ``rj_moves == "separate_branches"``,
+            there will be one RJ move per branch. During each individual RJ move, one of these proposals is chosen at random with
+            equal propability. This is generally recommended when using multiple branches.
+            If ``rj_moves == "together"``, this is equivalent to ``rj_moves == True``.
             (default: ``None``)
         dr_moves (bool, optional): If ``None`` ot ``False``, delayed rejection when proposing "birth"
             of new components/models will be switched off for this run. Requires ``rj_moves`` set to ``True``.
@@ -207,7 +214,7 @@ class EnsembleSampler(object):
         log_like_fn,
         priors,
         provide_groups=False,
-        provide_supplimental=False,
+        provide_supplemental=False,
         tempering_kwargs={},
         branch_names=None,
         nbranches=1,
@@ -244,7 +251,7 @@ class EnsembleSampler(object):
 
         # store some kwargs
         self.provide_groups = provide_groups
-        self.provide_supplimental = provide_supplimental
+        self.provide_supplemental = provide_supplemental
         self.fill_zero_leaves_val = fill_zero_leaves_val
         self.num_repeats_in_model = num_repeats_in_model
         self.num_repeats_rj = num_repeats_rj
@@ -374,8 +381,8 @@ class EnsembleSampler(object):
         # parse the reversible jump move schedule
         if rj_moves is None:
             self.has_reversible_jump = False
-        elif isinstance(rj_moves, bool):
-            self.has_reversible_jump = rj_moves
+        elif (isinstance(rj_moves, bool) and rj_moves) or isinstance(rj_moves, str):
+            self.has_reversible_jump = True
 
             if self.has_reversible_jump:
                 if nleaves_min is None:
@@ -404,18 +411,75 @@ class EnsembleSampler(object):
 
                 self.nleaves_min = nleaves_min
 
-                # default to DistributionGenerateRJ
-                rj_move = DistributionGenerateRJ(
-                    self.priors,
-                    nleaves_max=self.nleaves_max,
-                    nleaves_min=self.nleaves_min,
-                    dr=dr_moves,
-                    dr_max_iter=dr_max_iter,
-                    tune=False,
-                    temperature_control=self.temperature_control,
-                )
-                self.rj_moves = [rj_move]
-                self.rj_weights = [1.0]
+                if (isinstance(rj_moves, bool) and rj_moves) or (
+                    isinstance(rj_moves, str) and rj_moves == "together"
+                ):
+                    # default to DistributionGenerateRJ
+
+                    # gibbs sampling setup here means run all of them together
+                    gibbs_sampling_setup = None
+
+                    rj_move = DistributionGenerateRJ(
+                        self.priors,
+                        nleaves_max=self.nleaves_max,
+                        nleaves_min=self.nleaves_min,
+                        dr=dr_moves,
+                        dr_max_iter=dr_max_iter,
+                        tune=False,
+                        temperature_control=self.temperature_control,
+                        gibbs_sampling_setup=gibbs_sampling_setup,
+                    )
+                    self.rj_moves = [rj_move]
+                    self.rj_weights = [1.0]
+
+                elif isinstance(rj_moves, str) and rj_moves == "iterate_branches":
+                    # will iterate through all branches within one RJ proposal
+                    gibbs_sampling_setup = deepcopy(branch_names)
+
+                    # default to DistributionGenerateRJ
+                    rj_move = DistributionGenerateRJ(
+                        self.priors,
+                        nleaves_max=self.nleaves_max,
+                        nleaves_min=self.nleaves_min,
+                        dr=dr_moves,
+                        dr_max_iter=dr_max_iter,
+                        tune=False,
+                        temperature_control=self.temperature_control,
+                        gibbs_sampling_setup=gibbs_sampling_setup,
+                    )
+                    self.rj_moves = [rj_move]
+                    self.rj_weights = [1.0]
+
+                elif isinstance(rj_moves, str) and rj_moves == "separate_branches":
+                    # will iterate through all branches within one RJ proposal
+                    rj_moves = []
+                    rj_weights = []
+                    for branch_name in branch_names:
+
+                        # only do one branch per move
+                        gibbs_sampling_setup = [branch_name]
+
+                        # default to DistributionGenerateRJ
+                        rj_move_tmp = DistributionGenerateRJ(
+                            self.priors,
+                            nleaves_max=self.nleaves_max,
+                            nleaves_min=self.nleaves_min,
+                            dr=dr_moves,
+                            dr_max_iter=dr_max_iter,
+                            tune=False,
+                            temperature_control=self.temperature_control,
+                            gibbs_sampling_setup=gibbs_sampling_setup,
+                        )
+                        rj_moves.append(rj_move_tmp)
+                        # will renormalize after
+                        rj_weights.append(1.0)
+                    self.rj_moves = rj_moves
+                    self.rj_weights = rj_weights
+
+                elif isinstance(rj_moves, str):
+                    raise ValueError(
+                        f"When providing a str for rj_moves, must be 'together', 'iterate_branches', or 'separate_branches'. Input is {rj_moves}"
+                    )
 
         # same as above for moves
         elif isinstance(rj_moves, Iterable):
@@ -428,7 +492,12 @@ class EnsembleSampler(object):
                 self.rj_moves = rj_moves
                 self.rj_weights = np.ones(len(rj_moves))
 
-        else:
+        elif isinstance(rj_moves, bool) and not rj_moves:
+            self.has_reversible_jump = False
+            self.rj_moves = None
+            self.rj_weights = None
+
+        elif not isinstance(rj_moves, bool):
             self.has_reversible_jump = True
 
             self.rj_moves = [rj_moves]
@@ -852,8 +921,8 @@ class EnsembleSampler(object):
                 coords,
                 inds=inds,
                 logp=state.log_prior,
-                supps=state.supplimental,  # only used if self.provide_supplimental is True
-                branch_supps=state.branches_supplimental,  # only used if self.provide_supplimental is True
+                supps=state.supplemental,  # only used if self.provide_supplemental is True
+                branch_supps=state.branches_supplemental,  # only used if self.provide_supplemental is True
             )
 
         # get betas out of state object if they are there
@@ -976,6 +1045,8 @@ class EnsembleSampler(object):
                         )
 
                     # update after diagnostic and stopping check
+                    # if updating and using burn_in, need to make sure it does not use
+                    # previous chain samples since they are not stored.
                     if (
                         self.update_iterations > 0
                         and self.update_fn is not None
@@ -1024,9 +1095,6 @@ class EnsembleSampler(object):
                 )
             initial_state = self._previous_state
 
-        # setup thin_by info
-        thin_by = 1 if "thin_by" not in kwargs else kwargs["thin_by"]
-
         # run burn in
         if burn is not None and burn != 0:
             # prepare kwargs that relate to burn
@@ -1035,14 +1103,6 @@ class EnsembleSampler(object):
             burn_kwargs["thin_by"] = 1
             i = 0
             for results in self.sample(initial_state, iterations=burn, **burn_kwargs):
-                # if updating and using burn_in, need to make sure it does not use
-                # previous chain samples since they are not stored.
-                if (
-                    self.update_iterations > 0
-                    and self.update_fn is not None
-                    and (i + 1) % (self.update_iterations * thin_by) == 0
-                ):
-                    self.update_fn(i, results, self)
                 i += 1
 
             # run post-burn update
@@ -1247,11 +1307,11 @@ class EnsembleSampler(object):
 
         # take information out of dict and spread to x1..xn
         x_in = {}
-        if self.provide_supplimental:
+        if self.provide_supplemental:
             if supps is None and branch_supps is None:
                 raise ValueError(
-                    """supps and branch_supps are both None. If self.provide_supplimental
-                       is True, must provide some supplimental information."""
+                    """supps and branch_supps are both None. If self.provide_supplemental
+                       is True, must provide some supplemental information."""
                 )
             if branch_supps is not None:
                 branch_supps_in = {}
@@ -1287,21 +1347,21 @@ class EnsembleSampler(object):
             # fill x_values properly into dictionary
             x_in[name] = coords_i[inds_copy[name]]
 
-            # prepare branch supplimentals for each branch
-            if self.provide_supplimental:
+            # prepare branch supplementals for each branch
+            if self.provide_supplemental:
                 if branch_supps is not None:  #  and
                     if branch_supps[name] is not None:
                         # index the branch supps
                         # it will carry in a dictionary of information
                         branch_supps_in[name] = branch_supps[name][inds_copy[name]]
                     else:
-                        # fill with None if this branch does not have a supplimental
+                        # fill with None if this branch does not have a supplemental
                         branch_supps_in[name] = None
 
-        # deal with overall supplimental not specific to the branches
-        if self.provide_supplimental:
+        # deal with overall supplemental not specific to the branches
+        if self.provide_supplemental:
             if supps is not None:
-                # get the flattened supplimental
+                # get the flattened supplemental
                 # this will produce the shape (ntemps * nwalkers,...)
                 temp = supps.flat
 
@@ -1337,9 +1397,9 @@ class EnsembleSampler(object):
             if self.provide_groups:
                 args_in.append(groups_in)
 
-            # prepare supplimentals as kwargs to the Likelihood
+            # prepare supplementals as kwargs to the Likelihood
             kwargs_in = {}
-            if self.provide_supplimental:
+            if self.provide_supplemental:
                 if supps is not None:
                     kwargs_in["supps"] = supps_in
                 if branch_supps is not None:
@@ -1395,7 +1455,7 @@ class EnsembleSampler(object):
 
                         # add them to the specific args for this Likelihood
                         arg_i[branch_i] = params
-                        if self.provide_supplimental:
+                        if self.provide_supplemental:
                             if supps is not None:
                                 # supps are specific to each group
                                 kwarg_i["supps"] = {
@@ -1406,7 +1466,7 @@ class EnsembleSampler(object):
                                 if "branch_supps" not in kwarg_i:
                                     kwarg_i["branch_supps"] = {}
 
-                                # fill these branch supplimentals for the specific group
+                                # fill these branch supplementals for the specific group
                                 if branch_supps_in[branch_name_i] is not None:
                                     # get list of branch_supps values
                                     kwarg_i["branch_supps"][branch_name_i] = (
@@ -1467,7 +1527,7 @@ class EnsembleSampler(object):
 
             blobs_out = None
 
-        if False:  # self.provide_supplimental:
+        if False:  # self.provide_supplemental:
             # TODO: need to think about how to return information, we may need to add a function to do that
             if branch_supps is not None:
                 for name_i, name in enumerate(branch_supps):

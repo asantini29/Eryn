@@ -4,7 +4,7 @@ from copy import deepcopy
 import numpy as np
 import warnings
 
-from ..state import BranchSupplimental, State
+from ..state import BranchSupplemental, State
 from .move import Move
 
 
@@ -110,7 +110,8 @@ class RedBlueMove(Move, ABC):
             raise RuntimeError(
                 "It is unadvisable to use a red-blue move "
                 "with fewer walkers than twice the number of "
-                "dimensions."
+                "dimensions. If you would like to do this, please set live_dangerously"
+                "to True."
             )
 
         # Run any move-specific setup.
@@ -222,11 +223,11 @@ class RedBlueMove(Move, ABC):
                 # account for gibbs sampling
                 self.cleanup_proposals_gibbs(branch_names_run, inds_run, q, temp_coords)
 
-                # setup supplimental information
-                if state.supplimental is not None:
+                # setup supplemental information
+                if state.supplemental is not None:
                     # TODO: should there be a copy?
-                    new_supps = BranchSupplimental(
-                        state.supplimental.take_along_axis(all_inds_shaped, axis=1),
+                    new_supps = BranchSupplemental(
+                        state.supplemental.take_along_axis(all_inds_shaped, axis=1),
                         base_shape=(ntemps, nwalkers),
                         copy=False,
                     )
@@ -236,17 +237,17 @@ class RedBlueMove(Move, ABC):
 
                 # default for removing inds info from supp
                 if not np.all(
-                    np.asarray(list(state.branches_supplimental.values())) == None
+                    np.asarray(list(state.branches_supplemental.values())) == None
                 ):
                     new_branch_supps = {
-                        name: state.branches[name].branch_supplimental.take_along_axis(
+                        name: state.branches[name].branch_supplemental.take_along_axis(
                             all_inds_shaped[:, :, None], axis=1
                         )
                         for name in state.branches
                     }
 
                     new_branch_supps = {
-                        name: BranchSupplimental(
+                        name: BranchSupplemental(
                             new_branch_supps[name],
                             base_shape=new_inds[name].shape,
                             copy=False,
@@ -265,7 +266,7 @@ class RedBlueMove(Move, ABC):
                 # Compute prior of the proposed position
                 # new_inds_prior is adjusted if product-space is used
                 logp = model.compute_log_prior_fn(
-                    q, 
+                    q,
                     inds=new_inds,
                     supps=new_supps,
                     branch_supps=new_branch_supps,
@@ -313,8 +314,8 @@ class RedBlueMove(Move, ABC):
                     log_prior=logp,
                     blobs=new_blobs,
                     inds=new_inds,
-                    supplimental=new_supps,
-                    branch_supplimental=new_branch_supps,
+                    supplemental=new_supps,
+                    branch_supplemental=new_branch_supps,
                 )
 
                 # update state
