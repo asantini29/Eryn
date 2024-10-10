@@ -216,15 +216,14 @@ class GroupMove(Move, ABC):
                 branch_names_run, inds_run, q, state.branches_coords
             )
 
-            new_inds = state.branches_inds
+            # order everything properly
+            q, _, new_branch_supps = self.ensure_ordering(
+                list(state.branches.keys()), q, state.branches_inds, new_branch_supps
+            )
 
-            q, new_inds, new_branch_supps = self.ensure_ordering(
-                    list(state.branches.keys()), q, new_inds, new_branch_supps
-                )
-            
             # Compute prior of the proposed position
             # new_inds_prior is adjusted if product-space is used
-            logp = model.compute_log_prior_fn(q, inds=new_inds)
+            logp = model.compute_log_prior_fn(q, inds=state.branches_inds)
 
             self.fix_logp_gibbs(branch_names_run, inds_run, logp, new_inds)
 
