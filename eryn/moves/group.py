@@ -225,12 +225,12 @@ class GroupMove(Move, ABC):
             # new_inds_prior is adjusted if product-space is used
             logp = model.compute_log_prior_fn(q, inds=state.branches_inds)
 
-            self.fix_logp_gibbs(branch_names_run, inds_run, logp, new_inds)
+            self.fix_logp_gibbs(branch_names_run, inds_run, logp, state.branches_inds)
 
             # Can adjust supplementals in place
             logl, new_blobs = model.compute_log_like_fn(
                 q,
-                inds=new_inds,
+                inds=state.branches_inds,
                 logp=logp,
                 supps=new_supps,
                 branch_supps=new_branch_supps,
@@ -259,7 +259,7 @@ class GroupMove(Move, ABC):
                 log_like=logl,
                 log_prior=logp,
                 blobs=new_blobs,
-                inds=new_inds,
+                inds=state.branches_inds,
                 supplemental=new_supps,
                 branch_supplemental=new_branch_supps,
             )
