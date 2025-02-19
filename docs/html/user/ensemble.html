@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" data-content_root="../">
 <head>
@@ -5,20 +7,16 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ensemble &mdash; Eryn 0.0.1 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
-      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=92fd9be5" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
 
   
-  <!--[if lt IE 9]>
-    <script src="../_static/js/html5shiv.min.js"></script>
-  <![endif]-->
-  
-        <script src="../_static/jquery.js?v=5d32c60e"></script>
-        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-        <script src="../_static/documentation_options.js?v=d45e8c67"></script>
-        <script src="../_static/doctools.js?v=888ff710"></script>
-        <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
-        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=d45e8c67"></script>
+      <script src="../_static/doctools.js?v=9a2dae69"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -533,6 +531,8 @@ If provided, slice the array directly from the HDF5 file with slice = <code clas
 <code class="docutils literal notranslate"><span class="pre">thin</span></code> and <code class="docutils literal notranslate"><span class="pre">discard</span></code> will be ignored if slice_vals is not <code class="docutils literal notranslate"><span class="pre">None</span></code>.
 This is particularly useful if files are very large and the user only wants a
 small subset of the overall array. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
+<li><p><strong>temp_index</strong> (<em>int</em><em>, </em><em>optional</em>) – Integer for the desired temperature index.
+If <code class="docutils literal notranslate"><span class="pre">None</span></code>, will return all temperatures. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -565,6 +565,8 @@ If provided, slice the array directly from the HDF5 file with slice = <code clas
 <code class="docutils literal notranslate"><span class="pre">thin</span></code> and <code class="docutils literal notranslate"><span class="pre">discard</span></code> will be ignored if slice_vals is not <code class="docutils literal notranslate"><span class="pre">None</span></code>.
 This is particularly useful if files are very large and the user only wants a
 small subset of the overall array. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
+<li><p><strong>temp_index</strong> (<em>int</em><em>, </em><em>optional</em>) – Integer for the desired temperature index.
+If <code class="docutils literal notranslate"><span class="pre">None</span></code>, will return all temperatures. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -592,6 +594,8 @@ If provided, slice the array directly from the HDF5 file with slice = <code clas
 <code class="docutils literal notranslate"><span class="pre">thin</span></code> and <code class="docutils literal notranslate"><span class="pre">discard</span></code> will be ignored if slice_vals is not <code class="docutils literal notranslate"><span class="pre">None</span></code>.
 This is particularly useful if files are very large and the user only wants a
 small subset of the overall array. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
+<li><p><strong>temp_index</strong> (<em>int</em><em>, </em><em>optional</em>) – Integer for the desired temperature index.
+If <code class="docutils literal notranslate"><span class="pre">None</span></code>, will return all temperatures. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -619,6 +623,8 @@ If provided, slice the array directly from the HDF5 file with slice = <code clas
 <code class="docutils literal notranslate"><span class="pre">thin</span></code> and <code class="docutils literal notranslate"><span class="pre">discard</span></code> will be ignored if slice_vals is not <code class="docutils literal notranslate"><span class="pre">None</span></code>.
 This is particularly useful if files are very large and the user only wants a
 small subset of the overall array. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
+<li><p><strong>temp_index</strong> (<em>int</em><em>, </em><em>optional</em>) – Integer for the desired temperature index.
+If <code class="docutils literal notranslate"><span class="pre">None</span></code>, will return all temperatures. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -648,6 +654,8 @@ If provided, slice the array directly from the HDF5 file with slice = <code clas
 <code class="docutils literal notranslate"><span class="pre">thin</span></code> and <code class="docutils literal notranslate"><span class="pre">discard</span></code> will be ignored if slice_vals is not <code class="docutils literal notranslate"><span class="pre">None</span></code>.
 This is particularly useful if files are very large and the user only wants a
 small subset of the overall array. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
+<li><p><strong>temp_index</strong> (<em>int</em><em>, </em><em>optional</em>) – Integer for the desired temperature index.
+If <code class="docutils literal notranslate"><span class="pre">None</span></code>, will return all temperatures. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -675,6 +683,8 @@ If provided, slice the array directly from the HDF5 file with slice = <code clas
 <code class="docutils literal notranslate"><span class="pre">thin</span></code> and <code class="docutils literal notranslate"><span class="pre">discard</span></code> will be ignored if slice_vals is not <code class="docutils literal notranslate"><span class="pre">None</span></code>.
 This is particularly useful if files are very large and the user only wants a
 small subset of the overall array. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
+<li><p><strong>temp_index</strong> (<em>int</em><em>, </em><em>optional</em>) – Integer for the desired temperature index.
+If <code class="docutils literal notranslate"><span class="pre">None</span></code>, will return all temperatures. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -707,6 +717,8 @@ If provided, slice the array directly from the HDF5 file with slice = <code clas
 <code class="docutils literal notranslate"><span class="pre">thin</span></code> and <code class="docutils literal notranslate"><span class="pre">discard</span></code> will be ignored if slice_vals is not <code class="docutils literal notranslate"><span class="pre">None</span></code>.
 This is particularly useful if files are very large and the user only wants a
 small subset of the overall array. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
+<li><p><strong>temp_index</strong> (<em>int</em><em>, </em><em>optional</em>) – Integer for the desired temperature index.
+If <code class="docutils literal notranslate"><span class="pre">None</span></code>, will return all temperatures. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -755,6 +767,8 @@ If provided, slice the array directly from the HDF5 file with slice = <code clas
 <code class="docutils literal notranslate"><span class="pre">thin</span></code> and <code class="docutils literal notranslate"><span class="pre">discard</span></code> will be ignored if slice_vals is not <code class="docutils literal notranslate"><span class="pre">None</span></code>.
 This is particularly useful if files are very large and the user only wants a
 small subset of the overall array. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
+<li><p><strong>temp_index</strong> (<em>int</em><em>, </em><em>optional</em>) – Integer for the desired temperature index.
+If <code class="docutils literal notranslate"><span class="pre">None</span></code>, will return all temperatures. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>

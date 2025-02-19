@@ -17,13 +17,15 @@ class UniformDistribution(object):
         max_val (double): Maximum in the uniform distribution
         use_cupy (bool, optional): If ``True``, use CuPy. If ``False`` use Numpy.
             (default: ``False``)
+        return_gpu (bool, optional): If ``True``, return CuPy array. If ``False``,
+            return Numpy array. (default: ``False``)
 
     Raises:
         ValueError: Issue with inputs.
 
     """
 
-    def __init__(self, min_val, max_val, use_cupy=False):
+    def __init__(self, min_val, max_val, use_cupy=False, return_gpu=False):
         if min_val > max_val:
             tmp = min_val
             min_val = max_val
@@ -39,11 +41,18 @@ class UniformDistribution(object):
         self.logpdf_val = np.log(self.pdf_val)
 
         self.use_cupy = use_cupy
+        self.return_gpu = return_gpu
         if use_cupy:
             try:
                 cp.abs(1.0)
             except NameError:
                 raise ValueError("CuPy not found.")
+
+    @property
+    def xp(self):
+        """Numpy or Cupy"""
+        xp = np if not self.use_cupy else cp
+        return xp 
 
     def rvs(self, size=1):
         if not isinstance(size, int) and not isinstance(size, tuple):
@@ -52,32 +61,37 @@ class UniformDistribution(object):
         if isinstance(size, int):
             size = (size,)
 
-        xp = np if not self.use_cupy else cp
-
-        rand_unif = xp.random.rand(*size)
+        rand_unif = self.xp.random.rand(*size)
 
         out = rand_unif * self.diff + self.min_val
+
+        if self.use_cupy and not self.return_gpu:
+            return out.get()
 
         return out
 
     def pdf(self, x):
         out = self.pdf_val * ((x >= self.min_val) & (x <= self.max_val))
-
+        if self.use_cupy and not self.return_gpu:
+            return out.get()
+            
         return out
 
     def logpdf(self, x):
-        xp = np if not self.use_cupy else cp
 
-        out = xp.zeros_like(x)
+        out = self.xp.zeros_like(x)
         out[(x >= self.min_val) & (x <= self.max_val)] = self.logpdf_val
         out[(x < self.min_val) | (x > self.max_val)] = -np.inf
+        if self.use_cupy and not self.return_gpu:
+            return out.get()
+            
         return out
 
     def copy(self):
         return deepcopy(self)
 
 
-def uniform_dist(min, max, use_cupy=False):
+def uniform_dist(min, max, use_cupy=False, return_gpu=False):
     """Generate uniform distribution between ``min`` and ``max``
 
     Args:
@@ -85,13 +99,15 @@ def uniform_dist(min, max, use_cupy=False):
         max (double): Maximum in the uniform distribution
         use_cupy (bool, optional): If ``True``, use CuPy. If ``False`` use Numpy.
             (default: ``False``)
+        return_gpu (bool, optional): If ``True``, return CuPy array. If ``False``,
+            return Numpy array. (default: ``False``)
 
     Returns:
         :class:`UniformDistribution`: Uniform distribution.
 
 
     """
-    dist = UniformDistribution(min, max, use_cupy=use_cupy)
+    dist = UniformDistribution(min, max, use_cupy=use_cupy, return_gpu=return_gpu)
 
     return dist
 
@@ -134,6 +150,8 @@ class MappedUniformDistribution:
         max (double): Maximum in the uniform distribution
         use_cupy (bool, optional): If ``True``, use CuPy. If ``False`` use Numpy.
             (default: ``False``)
+        return_gpu (bool, optional): If ``True``, return CuPy array. If ``False``,
+            return Numpy array. (default: ``False``)
 
     Raises:
         ValueError: If ``min`` is greater than ``max``.
@@ -141,13 +159,19 @@ class MappedUniformDistribution:
 
     """
 
-    def __init__(self, min, max, use_cupy=False):
+    def __init__(self, min, max, use_cupy=False, return_gpu=False):
         self.min, self.max = min, max
         self.diff = self.max - self.min
         if self.min > self.max:
             raise ValueError("min must be less than max.")
 
-        self.dist = uniform_dist(0.0, 1.0, use_cupy=use_cupy)
+        self.dist = uniform_dist(0.0, 1.0, use_cupy=use_cupy, return_gpu=return_gpu)
+
+    @property
+    def xp(self):
+        """Numpy or Cupy"""
+        xp = np if not self.use_cupy else cp
+        return xp 
 
     def logpdf(self, x):
         """Get the log of the pdf value for this distribution.
@@ -161,7 +185,10 @@ class MappedUniformDistribution:
 
         """
         temp = 1.0 - (self.max - x) / self.diff
-        return self.dist.logpdf(temp)
+        out = self.dist.logpdf(temp)
+        if self.use_cupy and not self.return_gpu:
+            return out.get()
+        return out
 
     def rvs(self, size=1):
         """Get the log of the pdf value for this distribution.
@@ -182,8 +209,11 @@ class MappedUniformDistribution:
             raise ValueError("Size must be int or tuple of ints.")
 
         temp = self.dist.rvs(size=size)
-
-        return self.max + (temp - 1.0) * self.diff
+        
+        out = self.max + (temp - 1.0) * self.diff
+        if self.use_cupy and not self.return_gpu:
+            return out.get()
+        return out
 
 
 class ProbDistContainer:
@@ -203,13 +233,15 @@ class ProbDistContainer:
         ndim (int): Full dimensionality.
         use_cupy (bool, optional): If ``True``, use CuPy. If ``False`` use Numpy.
             (default: ``False``)
+        return_gpu (bool, optional): If ``True``, return CuPy array. If ``False``,
+            return Numpy array. (default: ``False``)
 
     Raises:
         ValueError: Missing parameters or incorrect index keys.
 
     """
 
-    def __init__(self, priors_in, use_cupy=False):
+    def __init__(self, priors_in, use_cupy=False, return_gpu=False):
         # copy to have
         self.priors_in = priors_in.copy()
 
@@ -245,9 +277,17 @@ class ProbDistContainer:
         self.ndim = uni_inds.max() + 1
 
         self.use_cupy = use_cupy
-
+        self.return_gpu = return_gpu
         for key, item in self.priors_in.items():
             item.use_cupy = use_cupy
+            # need this because the prob dist container will conglomerate
+            item.return_gpu = True
+            
+    @property
+    def xp(self):
+        """Numpy or Cupy"""
+        xp = np if not self.use_cupy else cp
+        return xp 
 
     def logpdf(self, x, keys=None):
         """Get logpdf by summing logpdf of individual distributions
@@ -265,7 +305,6 @@ class ProbDistContainer:
 
         """
         # TODO: check if mutliple index prior will work
-        xp = np if not self.use_cupy else cp
 
         # make sure at least 2D
         if x.ndim == 1:
@@ -277,7 +316,7 @@ class ProbDistContainer:
         else:
             squeeze = False
 
-        prior_vals = xp.zeros(x.shape[0])
+        prior_vals = self.xp.zeros(x.shape[0])
 
         # sum the logs (assumes parameters are independent)
         for i, (inds, prior_i) in enumerate(self.priors):
@@ -302,6 +341,9 @@ class ProbDistContainer:
         if squeeze:
             prior_vals = prior_vals[0].item()
 
+        if self.use_cupy and not self.return_gpu:
+            return prior_vals.get()
+
         return prior_vals
 
     def ppf(self, x, groups=None):
@@ -319,12 +361,10 @@ class ProbDistContainer:
         if groups is not None:
             raise NotImplementedError
 
-        xp = np if not self.use_cupy else cp
-
         # TODO: check if mutliple index prior will work
         is_1d = x.ndim == 1
-        x = xp.atleast_2d(x)
-        out_vals = xp.zeros_like(x)
+        x = self.xp.atleast_2d(x)
+        out_vals = self.xp.zeros_like(x)
 
         # sum the logs (assumes parameters are independent)
         for i, (inds, prior_i) in enumerate(self.priors):
@@ -338,6 +378,10 @@ class ProbDistContainer:
 
         if is_1d:
             return out_vals.squeeze()
+
+        if self.use_cupy and not self.return_gpu:
+            return out_vals.get()
+
         return out_vals
 
     def rvs(self, size=1, keys=None):
@@ -372,8 +416,6 @@ class ProbDistContainer:
         elif not isinstance(size, tuple):
             raise ValueError("Size must be int or tuple of ints.")
 
-        xp = np if not self.use_cupy else cp
-
         # setup the slicing to properly sample points
         out_inds = tuple([slice(None) for _ in range(len(size))])
 
@@ -381,7 +423,7 @@ class ProbDistContainer:
 
         ndim = self.ndim
 
-        out = xp.zeros(size + (ndim,))
+        out = self.xp.zeros(size + (ndim,))
         for i, (inds, prior_i) in enumerate(self.priors):
             # only generate desired parameters
             if keys is not None:
@@ -405,4 +447,6 @@ class ProbDistContainer:
             else:
                 out[inds_in] = prior_i.rvs(size=size)
 
+        if self.use_cupy and not self.return_gpu:
+            return out.get()
         return out

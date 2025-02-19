@@ -254,7 +254,7 @@ class Backend(object):
         """Returns ``True`` if the model includes blobs"""
         return self.blobs is not None
 
-    def get_value(self, name, thin=1, discard=0, slice_vals=None):
+    def get_value(self, name, thin=1, discard=0, slice_vals=None, temp_index=None):
         """Returns a requested value to user.
 
         This function helps to streamline the backend for both
@@ -267,6 +267,8 @@ class Backend(object):
             discard (int, optional): Discard the first ``discard`` steps in
                 the chain as burn-in. (default: ``0``)
             slice_vals (indexing np.ndarray or slice, optional): Ignored for non-HDFBackend.
+            temp_index (int, optional): Integer for the desired temperature index.
+                If ``None``, will return all temperatures. (default: ``None``)
 
         Returns:
             dict or np.ndarray: Values requested.
@@ -286,10 +288,15 @@ class Backend(object):
         if name == "blobs" and not self.has_blobs():
             return None
 
+        if temp_index is None:
+            temp_index = np.arange(self.ntemps)
+        else:
+            assert isinstance(temp_index, int)
+            
         # prepare chain for output
         if name == "chain":
             v_all = {
-                key: self.chain[key][discard + thin - 1 : self.iteration : thin]
+                key: self.chain[key][discard + thin - 1 : self.iteration : thin, temp_index]
                 for key in self.branch_names
             }
             return v_all
@@ -297,14 +304,14 @@ class Backend(object):
         # prepare inds for output
         if name == "inds":
             v_all = {
-                key: self.inds[key][discard + thin - 1 : self.iteration : thin]
+                key: self.inds[key][discard + thin - 1 : self.iteration : thin, temp_index]
                 for key in self.branch_names
             }
             return v_all
 
         # all other requests can filter through array output
         # rather than the dictionary output used above
-        v = getattr(self, name)[discard + thin - 1 : self.iteration : thin]
+        v = getattr(self, name)[discard + thin - 1 : self.iteration : thin, temp_index]
         return v
 
     def get_chain(self, **kwargs):
@@ -320,6 +327,8 @@ class Backend(object):
                 ``thin`` and ``discard`` will be ignored if slice_vals is not ``None``.
                 This is particularly useful if files are very large and the user only wants a
                 small subset of the overall array. (default: ``None``)
+            temp_index (int, optional): Integer for the desired temperature index.
+                If ``None``, will return all temperatures. (default: ``None``)
 
         Returns:
             dict: MCMC samples
@@ -374,6 +383,8 @@ class Backend(object):
                 ``thin`` and ``discard`` will be ignored if slice_vals is not ``None``.
                 This is particularly useful if files are very large and the user only wants a
                 small subset of the overall array. (default: ``None``)
+            temp_index (int, optional): Integer for the desired temperature index.
+                If ``None``, will return all temperatures. (default: ``None``)
 
         Returns:
             dict: The ``inds`` associated with the MCMC samples.
@@ -396,6 +407,8 @@ class Backend(object):
                 ``thin`` and ``discard`` will be ignored if slice_vals is not ``None``.
                 This is particularly useful if files are very large and the user only wants a
                 small subset of the overall array. (default: ``None``)
+            temp_index (int, optional): Integer for the desired temperature index.
+                If ``None``, will return all temperatures. (default: ``None``)
 
         Returns:
             dict: nleaves on each branch.
@@ -420,6 +433,8 @@ class Backend(object):
                 ``thin`` and ``discard`` will be ignored if slice_vals is not ``None``.
                 This is particularly useful if files are very large and the user only wants a
                 small subset of the overall array. (default: ``None``)
+            temp_index (int, optional): Integer for the desired temperature index.
+                If ``None``, will return all temperatures. (default: ``None``)
 
         Returns:
             double np.ndarray[nsteps, ntemps, nwalkers, nblobs]: The chain of blobs.
@@ -440,6 +455,8 @@ class Backend(object):
                 ``thin`` and ``discard`` will be ignored if slice_vals is not ``None``.
                 This is particularly useful if files are very large and the user only wants a
                 small subset of the overall array. (default: ``None``)
+            temp_index (int, optional): Integer for the desired temperature index.
+                If ``None``, will return all temperatures. (default: ``None``)
 
         Returns:
             double np.ndarray[nsteps, ntemps, nwalkers]: The chain of log likelihood values.
@@ -460,6 +477,8 @@ class Backend(object):
                 ``thin`` and ``discard`` will be ignored if slice_vals is not ``None``.
                 This is particularly useful if files are very large and the user only wants a
                 small subset of the overall array. (default: ``None``)
+            temp_index (int, optional): Integer for the desired temperature index.
+                If ``None``, will return all temperatures. (default: ``None``)
 
         Returns:
             double np.ndarray[nsteps, ntemps, nwalkers]: The chain of log prior values.
@@ -482,6 +501,8 @@ class Backend(object):
                 ``thin`` and ``discard`` will be ignored if slice_vals is not ``None``.
                 This is particularly useful if files are very large and the user only wants a
                 small subset of the overall array. (default: ``None``)
+            temp_index (int, optional): Integer for the desired temperature index.
+                If ``None``, will return all temperatures. (default: ``None``)
 
         Returns:
             double np.ndarray[nsteps, ntemps, nwalkers]: The chain of log prior values.
@@ -511,6 +532,8 @@ class Backend(object):
                 ``thin`` and ``discard`` will be ignored if slice_vals is not ``None``.
                 This is particularly useful if files are very large and the user only wants a
                 small subset of the overall array. (default: ``None``)
+            temp_index (int, optional): Integer for the desired temperature index.
+                If ``None``, will return all temperatures. (default: ``None``)
 
         Returns:
             double np.ndarray[nsteps, ntemps]: The chain of temperatures.
@@ -673,8 +696,10 @@ class Backend(object):
             "thermo",
             "ti",
         ]:
-            logls = np.mean(logls_all, axis=(0, -1))
-            logZ, dlogZ = thermodynamic_integration_log_evidence(betas, logls)
+            logls = logls_all.copy()
+            logls[~np.isfinite(logls)] = np.nan
+            meanlogls = np.nanmean(logls, axis=(0, -1))
+            logZ, dlogZ = thermodynamic_integration_log_evidence(betas, meanlogls)
         elif method.lower() in [
             "stepping stone",
             "ss",
