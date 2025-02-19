@@ -646,6 +646,7 @@ class EnsembleSampler(object):
             # Grab the last step so that we can restart
             it = self.backend.iteration
             if it > 0:
+                
                 self._previous_state = self.get_last_sample()
 
         # This is a random number generator that we can easily set the state

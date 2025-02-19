@@ -159,7 +159,6 @@ class TransformContainer:
             indexing_test_inds = tuple([slice(0, temp) for temp in shape[:-1]]) + (
                 test_inds,
             )
-
             # fill values directly from params array
             params_filled[indexing_test_inds] = params
 
