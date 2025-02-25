@@ -989,7 +989,7 @@ class EnsembleSampler(object):
                         state, accepted_out = move.propose(model, state)
                        
                         accepted += accepted_out
-                        if self.ntemps > 1:
+                        if self.ntemps > 1 and not move.prevent_swaps:
                             in_model_swaps = move.temperature_control.swaps_accepted
                         else:
                             in_model_swaps = None
