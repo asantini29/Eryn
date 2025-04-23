@@ -478,7 +478,7 @@ class State(object):
             elif coords[name].ndim < 2 or coords[name].ndim > 4:
                 raise ValueError(
                     "Dimension off coordinates must be between 2 and 4. coords dimension is {0}.".format(
-                        coords.ndim
+                        coords[name].ndim
                     )
                 )
 
