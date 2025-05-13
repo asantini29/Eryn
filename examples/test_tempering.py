@@ -10,6 +10,9 @@ from eryn.utils.utility import groups_from_inds
 import matplotlib.pyplot as plt
 import numpy as np
 
+import nautilus
+from pysco.eryn import NautilusWrapper
+
 # set random seed
 np.random.seed(42)
 
@@ -67,7 +70,7 @@ if __name__ == '__main__':
         moves=proposal,
         tempering_kwargs=tempering_kwargs
     )
-
+    
     nsteps = 1000
     # burn for 1000 steps
     burn = 1000
