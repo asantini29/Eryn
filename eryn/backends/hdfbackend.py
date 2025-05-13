@@ -790,45 +790,6 @@ class HDFBackend(Backend):
                 print("Failed to open h5 file. Trying again.")
                 time.sleep(10.0)
 
-                    # store everything else in the file
-                    g["log_like"][iteration, :] = state.log_like
-                    g["log_prior"][iteration, :] = state.log_prior
-                    if state.blobs is not None:
-                        g["blobs"][iteration, :] = state.blobs
-                    if state.betas is not None:
-                        g["betas"][self.iteration, :] = state.betas
-                    g["accepted"][:] += accepted
-                    if swaps_accepted is not None:
-                        g["swaps_accepted"][:] += swaps_accepted
-                    if self.rj:
-                        g["rj_accepted"][:] += rj_accepted
-
-                    for i, v in enumerate(state.random_state):
-                        g.attrs["random_state_{0}".format(i)] = v
-
-                    g.attrs["iteration"] = iteration + 1
-
-                    # moves
-                    if moves_accepted_fraction is not None:
-                        if "moves" not in g:
-                            raise ValueError(
-                                """moves_accepted_fraction was passed, but moves_info was not initialized. Use the moves kwarg 
-                                in the reset function."""
-                            )
-
-                        # update acceptance fractions
-                        for move_key in self.move_keys:
-                            g["moves"][move_key]["acceptance_fraction"][
-                                :
-                            ] = moves_accepted_fraction[move_key]
-                file_opened = True
-                
-            except BlockingIOError:
-                try_num += 1
-                if try_num >= max_tries:
-                    raise BlockingIOError("Max tries exceeded trying to open h5 file.")
-                print("Failed to open h5 file. Trying again.")
-                time.sleep(10.0)
 
 class TempHDFBackend(object):
     """Check if HDF5 is working and available."""
