@@ -1037,6 +1037,7 @@ class EnsembleSampler(object):
                         else:
                             moves_accepted_fraction = None
 
+                        print("RIGHT BEFORE SAVE", self.backend.filename)
                         self.backend.save_step(
                             state,
                             accepted,
@@ -1044,10 +1045,19 @@ class EnsembleSampler(object):
                             swaps_accepted=in_model_swaps,
                             moves_accepted_fraction=moves_accepted_fraction,
                         )
+                        print("RIGHT AFTER SAVE", self.backend.filename)
 
                     # update after diagnostic and stopping check
                     # if updating and using burn_in, need to make sure it does not use
                     # previous chain samples since they are not stored.
+                    if (
+                        self.update_iterations > 0
+                        and self.update_fn is not None
+                        and (i + 1) % (self.update_iterations) == 0
+                    ):
+                        self.update_fn(i, state, self)
+
+                    # update after diagnostic and stopping check
                     if (
                         self.update_iterations > 0
                         and self.update_fn is not None
@@ -1136,7 +1146,7 @@ class EnsembleSampler(object):
                     break
 
             i += 1
-
+            
         # Store so that the ``initial_state=None`` case will work
         self._previous_state = results
 
