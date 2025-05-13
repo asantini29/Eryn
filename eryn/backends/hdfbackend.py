@@ -139,7 +139,7 @@ class HDFBackend(Backend):
                 f = h5py.File(self.filename, mode)
                 file_opened = True
                 
-            except BlockingIOError:
+            except (BlockingIOError, OSError) as e:
                 try_num += 1
                 if try_num >= max_tries:
                     raise BlockingIOError("Max tries exceeded trying to open h5 file.")
@@ -184,8 +184,8 @@ class HDFBackend(Backend):
             nwalkers (int): The size of the ensemble
             ndims (int, list of ints, or dict): The number of dimensions for each branch. If
                 ``dict``, keys should be the branch names and values the associated dimensionality.
-            nleaves_max (int, list of ints, or dict, optional): Maximum allowable leaf count for each branch. 
-                It should have the same length as the number of branches. 
+            nleaves_max (int, list of ints, or dict, optional): Maximum allowable leaf count for each branch.
+                It should have the same length as the number of branches.
                 If ``dict``, keys should be the branch names and values the associated maximal leaf value.
                 (default: ``1``)
             ntemps (int, optional): Number of rungs in the temperature ladder.
@@ -235,7 +235,9 @@ class HDFBackend(Backend):
                 assert len(list(ndims.keys())) == len(branch_names)
                 for key in ndims:
                     if key not in branch_names:
-                        raise ValueError(f"{key} is in ndims but does not appear in branch_names: {branch_names}.")
+                        raise ValueError(
+                            f"{key} is in ndims but does not appear in branch_names: {branch_names}."
+                        )
             else:
                 raise ValueError("ndims is to be a scalar int, list or dict.")
 
@@ -251,7 +253,9 @@ class HDFBackend(Backend):
                 assert len(list(nleaves_max.keys())) == len(branch_names)
                 for key in nleaves_max:
                     if key not in branch_names:
-                        raise ValueError(f"{key} is in nleaves_max but does not appear in branch_names: {branch_names}.")
+                        raise ValueError(
+                            f"{key} is in nleaves_max but does not appear in branch_names: {branch_names}."
+                        )
             else:
                 raise ValueError("nleaves_max is to be a scalar int, list, or dict.")
 
@@ -366,7 +370,7 @@ class HDFBackend(Backend):
                 move_group = g.create_group("moves")
                 # setup info and keys
                 for full_move_name in moves:
-                
+
                     single_move = move_group.create_group(full_move_name)
 
                     # prepare information dictionary
@@ -406,13 +410,19 @@ class HDFBackend(Backend):
     def nleaves_max(self):
         """Get nleaves_max from h5 file."""
         with self.open() as f:
-            return {key: f[self.name]["nleaves_max"].attrs[key] for key in f[self.name]["nleaves_max"].attrs}
+            return {
+                key: f[self.name]["nleaves_max"].attrs[key]
+                for key in f[self.name]["nleaves_max"].attrs
+            }
 
     @property
     def ndims(self):
         """Get ndims from h5 file."""
         with self.open() as f:
-            return {key: f[self.name]["ndims"].attrs[key] for key in f[self.name]["ndims"].attrs}
+            return {
+                key: f[self.name]["ndims"].attrs[key]
+                for key in f[self.name]["ndims"].attrs
+            }
 
     @property
     def move_keys(self):
@@ -424,7 +434,7 @@ class HDFBackend(Backend):
     def branch_names(self):
         """Get branch names from h5 file."""
         with self.open() as f:
-            return f[self.name].attrs["branch_names"]
+            return list(f[self.name].attrs["branch_names"])
 
     @property
     def nbranches(self):
@@ -445,21 +455,15 @@ class HDFBackend(Backend):
             ntemps=self.ntemps,
             branch_names=self.branch_names,
             rj=self.rj,
-            moves=self.moves,
+            moves=list(self.get_move_info().keys()),
         )
-
-    @property
-    def reset_kwargs(self):
-        """Get reset_kwargs from h5 file."""
-        with self.open() as f:
-            return f[self.name].attrs["reset_kwargs"]
 
     def has_blobs(self):
         """Returns ``True`` if the model includes blobs"""
         with self.open() as f:
             return f[self.name].attrs["has_blobs"]
 
-    def get_value(self, name, thin=1, discard=0, slice_vals=None):
+    def get_value(self, name, thin=1, discard=0, slice_vals=None, temp_index=None):
         """Returns a requested value to user.
 
         This function helps to streamline the backend for both
@@ -472,10 +476,12 @@ class HDFBackend(Backend):
             discard (int, optional): Discard the first ``discard`` steps in
                 the chain as burn-in. (default: ``0``)
             slice_vals (indexing np.ndarray or slice, optional): If provided, slice the array directly
-                from the HDF5 file with slice = ``slice_vals``. ``thin`` and ``discard`` will be 
-                ignored if slice_vals is not ``None``. This is particularly useful if files are 
+                from the HDF5 file with slice = ``slice_vals``. ``thin`` and ``discard`` will be
+                ignored if slice_vals is not ``None``. This is particularly useful if files are
                 very large and the user only wants a small subset of the overall array.
                 (default: ``None``)
+            temp_index (int, optional): Integer for the desired temperature index.
+                If ``None``, will return all temperatures. (default: ``None``)
 
         Returns:
             dict or np.ndarray: Values requested.
@@ -486,46 +492,67 @@ class HDFBackend(Backend):
             raise AttributeError(
                 "You must run the sampler with "
                 "'store == True' before accessing the "
-                "results"
+                "results."
+                "When using the HDF backend, make sure you have the file"
+                "path correctly set. This is the error that"
+                "is given if the backend cannot find the file."
             )
 
         if slice_vals is None:
             slice_vals = slice(discard + thin - 1, self.iteration, thin)
 
-        # open the file wrapped in a "with" statement
-        with self.open() as f:
-            # get the group that everything is stored in
-            g = f[self.name]
-            iteration = g.attrs["iteration"]
-            if iteration <= 0:
-                raise AttributeError(
-                    "You must run the sampler with "
-                    "'store == True' before accessing the "
-                    "results"
-                )
+        successful = False
+        num_try = 0
+        while not successful and num_try < 100:
+            try:
+                # open the file wrapped in a "with" statement
+                with self.open() as f:
+                    # get the group that everything is stored in
+                    g = f[self.name]
+                    iteration = g.attrs["iteration"]
+                    if iteration <= 0:
+                        raise AttributeError(
+                            "You must run the sampler with "
+                            "'store == True' before accessing the "
+                            "results"
+                        )
 
-            if name == "blobs" and not g.attrs["has_blobs"]:
-                return None
+                    if name == "blobs" and not g.attrs["has_blobs"]:
+                        v_all = None
 
-            if name == "chain":
-                v_all = {key: g["chain"][key][slice_vals] for key in g["chain"]}
-                return v_all
+                    if temp_index is None:
+                        temp_index = np.arange(self.ntemps)
+                    else:
+                        assert isinstance(temp_index, int)
 
-            if name == "inds":
-                v_all = {key: g["inds"][key][slice_vals] for key in g["inds"]}
+                    if name == "chain":
+                        v_all = {key: g["chain"][key][slice_vals, temp_index] for key in g["chain"]}
+                        return v_all
 
-                return v_all
+                    if name == "inds":
+                        v_all = {key: g["inds"][key][slice_vals, temp_index] for key in g["inds"]}
+                   
+                    else:
+                        v_all = g[name][slice_vals, temp_index]
 
-            v = g[name][slice_vals]
+                    successful = True
+            
+            except OSError:
+                num_try += 1
+                print(f"Unable to read h5 file {num_try} times.")
+                time.sleep(20.0)
 
-            return v
+        if not successful:
+            raise OSError("Attempted to open file max try number of times. Likely cannot read data.")
+                
+        return v_all
 
     def get_move_info(self):
         """Get move information.
-        
+
         Returns:
             dict: Keys are move names and values are dictionaries with information on the moves.
-        
+
         """
         # setup output dictionary
         move_info_out = {}
@@ -556,7 +583,12 @@ class HDFBackend(Backend):
         with self.open() as f:
             g = f[self.name]
             return {
-                key: (g.attrs["ntemps"], g.attrs["nwalkers"], self.nleaves_max[key], self.ndims[key])
+                key: (
+                    g.attrs["ntemps"],
+                    g.attrs["nwalkers"],
+                    self.nleaves_max[key],
+                    self.ndims[key],
+                )
                 for key in g.attrs["branch_names"]
             }
 
@@ -669,7 +701,7 @@ class HDFBackend(Backend):
                 is False, then rj_accepted must be None, which is the default.
             swaps_accepted (ndarray, optional): 1D array with number of swaps accepted
                 for the in-model step. (default: ``None``)
-            moves_accepted_fraction (dict, optional): Dict of acceptance fraction arrays for all of the 
+            moves_accepted_fraction (dict, optional): Dict of acceptance fraction arrays for all of the
                 moves in the sampler. This dict must have the same keys as ``self.move_keys``.
                 (default: ``None``)
 
@@ -679,7 +711,7 @@ class HDFBackend(Backend):
         try_num = 0
         while not file_opened:
             try:
-                        
+
                 # open for appending in with statement
                 with self.open("a") as f:
                     g = f[self.name]
@@ -700,7 +732,10 @@ class HDFBackend(Backend):
 
                     # check the inputs are okay
                     self._check(
-                        state, accepted, rj_accepted=rj_accepted, swaps_accepted=swaps_accepted,
+                        state,
+                        accepted,
+                        rj_accepted=rj_accepted,
+                        swaps_accepted=swaps_accepted,
                     )
 
                     # branch-specific
@@ -709,11 +744,51 @@ class HDFBackend(Backend):
                         # use self.store_missing_leaves to set value for missing leaves
                         # state retains old coordinates
                         coords_in = model.coords * model.inds[:, :, :, None]
-                        inds_all = np.repeat(model.inds, coords_in.shape[-1], axis=-1).reshape(
-                            model.inds.shape + (coords_in.shape[-1],)
-                        )
+                        inds_all = np.repeat(
+                            model.inds, coords_in.shape[-1], axis=-1
+                        ).reshape(model.inds.shape + (coords_in.shape[-1],))
                         coords_in[~inds_all] = self.store_missing_leaves
                         g["chain"][name][self.iteration] = coords_in
+
+                    # store everything else in the file
+                    g["log_like"][iteration, :] = state.log_like
+                    g["log_prior"][iteration, :] = state.log_prior
+                    if state.blobs is not None:
+                        g["blobs"][iteration, :] = state.blobs
+                    if state.betas is not None:
+                        g["betas"][self.iteration, :] = state.betas
+                    g["accepted"][:] += accepted
+                    if swaps_accepted is not None:
+                        g["swaps_accepted"][:] += swaps_accepted
+                    if self.rj:
+                        g["rj_accepted"][:] += rj_accepted
+
+                    for i, v in enumerate(state.random_state):
+                        g.attrs["random_state_{0}".format(i)] = v
+
+                    g.attrs["iteration"] = iteration + 1
+
+                    # moves
+                    if moves_accepted_fraction is not None:
+                        if "moves" not in g:
+                            raise ValueError(
+                                """moves_accepted_fraction was passed, but moves_info was not initialized. Use the moves kwarg 
+                                in the reset function."""
+                            )
+
+                        # update acceptance fractions
+                        for move_key in self.move_keys:
+                            g["moves"][move_key]["acceptance_fraction"][:] = (
+                                moves_accepted_fraction[move_key]
+                            )
+                file_opened = True
+                
+            except (BlockingIOError, OSError) as e:
+                try_num += 1
+                if try_num >= max_tries:
+                    raise BlockingIOError("Max tries exceeded trying to open h5 file.")
+                print("Failed to open h5 file. Trying again.")
+                time.sleep(10.0)
 
                     # store everything else in the file
                     g["log_like"][iteration, :] = state.log_like

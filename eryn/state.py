@@ -12,11 +12,13 @@ import numpy as np
 
 __all__ = ["State"]
 
+def return_x(x):
+    return x
 
-class BranchSupplimental(object):
+class BranchSupplemental(object):
     """Special object to carry information through sampler.
 
-    The :class:`BranchSupplimental` object is a holder of information that is
+    The :class:`BranchSupplemental` object is a holder of information that is
     passed through the sampler. It can also be indexed similar to other quantities
     carried throughout the sampler.
 
@@ -40,13 +42,13 @@ class BranchSupplimental(object):
             and values are arrays. These arrays should have a base shape that is equivalent to
             ``base_shape``, meaning ``array.shape[:len(base_shape)] == self.base_shape``.
             The dimensions beyond the base shape can be anything.
-        base_shape (tuple): Base shape for indexing. Objects stored in the supplimental object
+        base_shape (tuple): Base shape for indexing. Objects stored in the supplemental object
             will have a shape that at minimum is equivalent to ``base_shape``.
         copy (bool, optional): If ``True``, copy whatever information is given in before it is stored.
             if ``False``, store directly the input information. (default: ``False``)
 
     Attributes:
-        holder (dict): All of the objects stored for this supplimental object.
+        holder (dict): All of the objects stored for this supplemental object.
 
 
     """
@@ -77,7 +79,7 @@ class BranchSupplimental(object):
         """
 
         # whether a copy is requested
-        dc = deepcopy if copy else (lambda x: x)
+        dc = deepcopy if copy else (return_x)
 
         # iterate through the dictionary of incoming objects to add
         for name, obj_contained in obj_info.items():
@@ -343,38 +345,38 @@ class Branch(object):
             are output to the backend, the backend saves a special number (default: ``np.nan``) for all coords
             related to unused leaves at that step. If None, inds will fill with all True values.
             (default: ``None``)
-        branch_supplimental (object): :class:`BranchSupplimental` object specific to this branch. (default: ``None``)
+        branch_supplemental (object): :class:`BranchSupplemental` object specific to this branch. (default: ``None``)
 
     Raises:
         ValueError: ``inds`` has wrong shape or number of leaves is less than zero.
 
     """
 
-    def __init__(self, coords, inds=None, branch_supplimental=None):
+    def __init__(self, coords, inds=None, branch_supplemental=None):
         # store branch info
         self.coords = coords
-        self.ntemps, self.ntrees, self.nleaves_max, self.ndim = coords.shape
+        self.ntemps, self.nwalkers, self.nleaves_max, self.ndim = coords.shape
         self.shape = coords.shape
 
         # make sure inds is correct
         if inds is None:
-            self.inds = np.full((self.ntemps, self.ntrees, self.nleaves_max), True)
+            self.inds = np.full((self.ntemps, self.nwalkers, self.nleaves_max), True)
         elif not isinstance(inds, np.ndarray):
             raise ValueError("inds must be np.ndarray in Branch.")
-        elif inds.shape != (self.ntemps, self.ntrees, self.nleaves_max):
+        elif inds.shape != (self.ntemps, self.nwalkers, self.nleaves_max):
             raise ValueError("inds has wrong shape.")
         else:
             self.inds = inds
 
-        if branch_supplimental is not None:
-            # make sure branch_supplimental shape matches
-            if branch_supplimental.base_shape != self.inds.shape:
+        if branch_supplemental is not None:
+            # make sure branch_supplemental shape matches
+            if branch_supplemental.base_shape != self.inds.shape:
                 raise ValueError(
-                    f"branch_supplimental shape ( {branch_supplimental.base_shape} ) does not match inds shape ( {self.inds.shape} )."
+                    f"branch_supplemental shape ( {branch_supplemental.base_shape} ) does not match inds shape ( {self.inds.shape} )."
                 )
 
         # store
-        self.branch_supplimental = branch_supplimental
+        self.branch_supplemental = branch_supplemental
 
     @property
     def nleaves(self):
@@ -428,7 +430,7 @@ class State(object):
     #    "log_prior",
     #    "blobs",
     #    "betas",
-    #    "supplimental",
+    #    "supplemental",
     #    "random_state",
     # )
 
@@ -436,8 +438,8 @@ class State(object):
         self,
         coords,
         inds=None,
-        branch_supplimental=None,
-        supplimental=None,
+        branch_supplemental=None,
+        supplemental=None,
         log_like=None,
         log_prior=None,
         betas=None,
@@ -446,7 +448,7 @@ class State(object):
         copy=False,
     ):
         # decide if copying input info
-        dc = deepcopy if copy else lambda x: x
+        dc = deepcopy if copy else return_x
 
         # check if coords is a State object
         if hasattr(coords, "branches"):
@@ -455,7 +457,7 @@ class State(object):
             self.log_prior = dc(coords.log_prior)
             self.blobs = dc(coords.blobs)
             self.betas = dc(coords.betas)
-            self.supplimental = dc(coords.supplimental)
+            self.supplemental = dc(coords.supplemental)
             self.random_state = dc(coords.random_state)
             return
 
@@ -490,6 +492,9 @@ class State(object):
 
         if branch_supplimental is None:
             branch_supplimental = {key: None for key in coords}
+        elif isinstance(branch_supplimental, dict): # case where not all branches have supp 
+            for key in coords.keys() - branch_supplimental.keys():
+                branch_supplimental[key] = None
         elif not isinstance(branch_supplimental, dict):
             raise ValueError("branch_supplimental must be None or dict.")
 
@@ -498,7 +503,7 @@ class State(object):
             key: Branch(
                 dc(temp_coords),
                 inds=inds[key],
-                branch_supplimental=branch_supplimental[key],
+                branch_supplemental=branch_supplemental[key],
             )
             for key, temp_coords in coords.items()
         }
@@ -506,7 +511,7 @@ class State(object):
         self.log_prior = dc(np.atleast_2d(log_prior)) if log_prior is not None else None
         self.blobs = dc(np.atleast_3d(blobs)) if blobs is not None else None
         self.betas = dc(np.atleast_1d(betas)) if betas is not None else None
-        self.supplimental = dc(supplimental)
+        self.supplemental = dc(supplemental)
         self.random_state = dc(random_state)
 
     @property
@@ -520,10 +525,10 @@ class State(object):
         return {name: branch.coords for name, branch in self.branches.items()}
 
     @property
-    def branches_supplimental(self):
-        """Get the ``branch.supplimental`` from all branch objects returned as a dictionary with ``branch_names`` as keys."""
+    def branches_supplemental(self):
+        """Get the ``branch.supplemental`` from all branch objects returned as a dictionary with ``branch_names`` as keys."""
         return {
-            name: branch.branch_supplimental for name, branch in self.branches.items()
+            name: branch.branch_supplemental for name, branch in self.branches.items()
         }
 
     @property
@@ -577,192 +582,3 @@ class State(object):
         return iter(temp)
     """
 
-
-class ParaState(object):
-    """The state of the ensemble during an MCMC run
-
-    Args:
-        coords (double ndarray[ntemps, nwalkers, nleaves_max, ndim], dict, or :class:`.State`): The current positions of the walkers
-            in the parameter space. If dict, need to use ``branch_names`` for the keys.
-        groups_running (bool ndarray[ntemps, nwalkers, nleaves_max] or dict, optional): The information
-            on which leaves are used and which are not used. A value of True means the specific leaf
-            was used in this step. If dict, need to use ``branch_names`` for the keys.
-            Input should be ``None`` if a complete :class:`.State` object is input for ``coords``.
-            (default: ``None``)
-        log_like (ndarray[ntemps, nwalkers], optional): Log likelihoods
-            for the  walkers at positions given by ``coords``.
-            Input should be ``None`` if a complete :class:`.State` object is input for ``coords``.
-            (default: ``None``)
-        log_prior (ndarray[ntemps, nwalkers], optional): Log priors
-            for the  walkers at positions given by ``coords``.
-            Input should be ``None`` if a complete :class:`.State` object is input for ``coords``.
-            (default: ``None``)
-        betas (ndarray[ntemps], optional): Temperatures in the sampler at the current step.
-            Input should be ``None`` if a complete :class:`.State` object is input for ``coords``.
-            (default: ``None``)
-        blobs (ndarray[ntemps, nwalkers, nblobs], Optional): The metadata “blobs”
-            associated with the current position. The value is only returned if
-            lnpostfn returns blobs too.
-            Input should be ``None`` if a complete :class:`.State` object is input for ``coords``.
-            (default: ``None``)
-        random_state (Optional): The current state of the random number
-            generator.
-            Input should be ``None`` if a complete :class:`.State` object is input for ``coords``.
-            (default: ``None``)
-        copy (bool, optional): If True, copy the the arrays in the former :class:`.State` obhect.
-
-    Raises:
-        ValueError: Dimensions of inputs or input types are incorrect.
-
-    """
-
-    # __slots__ = (
-    #    "branches",
-    #    "log_like",
-    #    "log_prior",
-    #    "blobs",
-    #    "betas",
-    #    "supplimental",
-    #    "random_state",
-    # )
-
-    def __init__(
-        self,
-        coords,
-        groups_running=None,
-        branch_supplimental=None,
-        supplimental=None,
-        log_like=None,
-        log_prior=None,
-        betas=None,
-        blobs=None,
-        random_state=None,
-        copy=False,
-    ):
-        # decide if copying input info
-        dc = deepcopy if copy else lambda x: x
-
-        # check if coords is a State object
-        if hasattr(coords, "branches"):
-            self.branches = dc(coords.branches)
-            self.groups_running = dc(coords.groups_running)
-            self.log_like = dc(coords.log_like)
-            self.log_prior = dc(coords.log_prior)
-            self.blobs = dc(coords.blobs)
-            self.betas = dc(coords.betas)
-            self.supplimental = dc(coords.supplimental)
-            # self.random_state = dc(coords.random_state)
-            # TODO: check this
-            self.random_state = coords.random_state
-            return
-
-        # protect against simplifying settings
-        if isinstance(coords, np.ndarray) or isinstance(coords, xp.ndarray):
-            coords = {"model_0": coords}
-        elif not isinstance(coords, dict):
-            raise ValueError(
-                "Input coords need to be np.ndarray, dict, or State object."
-            )
-
-        for name in coords:
-            if coords[name].ndim == 2:
-                coords[name] = coords[name][None, :, None, :]
-
-            # assume (ntemps, nwalkers) provided
-            if coords[name].ndim == 3:
-                coords[name] = coords[name][:, :, None, :]
-
-            elif coords[name].ndim < 2 or coords[name].ndim > 4:
-                raise ValueError(
-                    "Dimension off coordinates must be between 2 and 4. coords dimension is {0}.".format(
-                        coords.ndim
-                    )
-                )
-
-        if branch_supplimental is None:
-            branch_supplimental = {key: None for key in coords}
-        elif not isinstance(branch_supplimental, dict):
-            raise ValueError("branch_supplimental must be None or dict.")
-
-        # setup all information for storage
-        self.branches = {
-            key: Branch(
-                dc(temp_coords),
-                inds=None,
-                branch_supplimental=branch_supplimental[key],
-            )
-            for key, temp_coords in coords.items()
-        }
-
-        self.groups_running = (
-            dc(np.atleast_1d(groups_running)) if groups_running is not None else None
-        )
-        self.log_like = dc(np.atleast_2d(log_like)) if log_like is not None else None
-        self.log_prior = dc(np.atleast_2d(log_prior)) if log_prior is not None else None
-        self.blobs = dc(np.atleast_3d(blobs)) if blobs is not None else None
-        self.betas = dc(np.atleast_1d(betas)) if betas is not None else None
-        self.supplimental = dc(supplimental)
-        self.random_state = dc(random_state)
-
-    @property
-    def branches_coords(self):
-        """Get the ``coords`` from all branch objects returned as a dictionary with ``branch_names`` as keys."""
-        return {name: branch.coords for name, branch in self.branches.items()}
-
-    @property
-    def branches_supplimental(self):
-        """Get the ``branch.supplimental`` from all branch objects returned as a dictionary with ``branch_names`` as keys."""
-        return {
-            name: branch.branch_supplimental for name, branch in self.branches.items()
-        }
-
-    @property
-    def branch_names(self):
-        """Get the branch names in this state."""
-        return list(self.branches.keys())
-
-    def copy_into_self(self, state_to_copy):
-        for name in state_to_copy.__slots__:
-            setattr(self, name, getattr(state_to_copy, name))
-
-    def get_log_posterior(self, temper: bool = False):
-        """Get the posterior probability
-
-        Args:
-            temper (bool, optional): If ``True``, apply tempering to the posterior computation.
-
-        Returns:
-            np.ndarray[ntemps, nwalkers]: Log of the posterior probability.
-
-        """
-
-        if temper:
-            betas = self.betas
-
-        else:
-            betas = np.ones_like(self.betas)
-
-        return betas * self.log_like + self.log_prior
-
-    """
-    # TODO
-    def __repr__(self):
-        return "State({0}, log_like={1}, blobs={2}, betas={3}, random_state={4})".format(
-            self.coords, self.log_like, self.blobs, self.betas, self.random_state
-        )
-
-    def __iter__(self):
-        temp = (self.coords,)
-        if self.log_like is not None:
-            temp += (self.log_like,)
-
-        if self.blobs is not None:
-            temp += (self.blobs,)
-
-        if self.betas is None:
-            temp += (self.betas,)
-
-        if self.random_state is not None:
-            temp += (self.random_state,)
-        return iter(temp)
-    """

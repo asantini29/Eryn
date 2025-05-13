@@ -8,7 +8,13 @@ from eryn.ensemble import EnsembleSampler
 from eryn.state import State
 from eryn.prior import ProbDistContainer, uniform_dist
 from eryn.utils import TransformContainer
-from eryn.moves import GaussianMove, StretchMove, CombineMove, DistributionGenerateRJ
+from eryn.moves import (
+    GaussianMove,
+    StretchMove,
+    CombineMove,
+    DistributionGenerateRJ,
+    GroupStretchMove,
+)
 from eryn.utils.utility import groups_from_inds
 from eryn.backends import HDFBackend
 
@@ -174,6 +180,7 @@ class ErynTest(unittest.TestCase):
             )
         )
 
+        backend_test_file = "_hdf_backend_test_file.h5"
         # initialize sampler
         ensemble_pt = EnsembleSampler(
             nwalkers,
@@ -181,6 +188,7 @@ class ErynTest(unittest.TestCase):
             log_like_fn,
             priors,
             args=[means, cov],
+            backend=backend_test_file,
             tempering_kwargs=tempering_kwargs,
         )
 
@@ -196,11 +204,15 @@ class ErynTest(unittest.TestCase):
 
         ll = ensemble_pt.backend.get_log_like()
 
+        # check temperature index
+        cold_chain = ensemble_pt.backend.get_chain(discard=10, thin=2, temp_index=0)
+        os.remove(backend_test_file)
+
     def test_rj(self):
         nwalkers = 20
         ntemps = 8
         ndim = 3
-        nleaves_max = {"gauss": 8}
+        nleaves_max = {"gauss": 1}
         nleaves_min = {"gauss": 0}
 
         branch_names = ["gauss"]
@@ -210,17 +222,17 @@ class ErynTest(unittest.TestCase):
         t = np.linspace(-1, 1, num)
 
         gauss_inj_params = [
-            [3.3, -0.2, 0.1],
-            [2.6, -0.1, 0.1],
-            [3.4, 0.0, 0.1],
-            [2.9, 0.3, 0.1],
+            # [3.3, -0.2, 0.1],
+            # [2.6, -0.1, 0.1],
+            # [3.4, 0.0, 0.1],
+            # [2.9, 0.3, 0.1],
         ]
 
         # combine gaussians
         injection = combine_gaussians(t, np.asarray(gauss_inj_params))
 
         # set noise level
-        sigma = 2.0
+        sigma = 0.00001
 
         # produce full data
         y = injection + sigma * np.random.randn(len(injection))
@@ -233,22 +245,22 @@ class ErynTest(unittest.TestCase):
         sig1 = 0.0001
 
         # setup initial walkers to be the correct count (it will spread out)
-        for nn in range(nleaves_max["gauss"]):
-            if nn >= len(gauss_inj_params):
-                # not going to add parameters for these unused leaves
-                continue
+        # for nn in range(nleaves_max["gauss"]):
+        #     if nn >= len(gauss_inj_params):
+        #         # not going to add parameters for these unused leaves
+        #         continue
 
-            coords["gauss"][:, :, nn] = np.random.multivariate_normal(
-                gauss_inj_params[nn],
-                np.diag(np.ones(3) * sig1),
-                size=(ntemps, nwalkers),
-            )
+        #     coords["gauss"][:, :, nn] = np.random.multivariate_normal(
+        #         gauss_inj_params[nn],
+        #         np.diag(np.ones(3) * sig1),
+        #         size=(ntemps, nwalkers),
+        #     )
 
         # make sure to start near the proper setup
         inds = {"gauss": np.zeros((ntemps, nwalkers, nleaves_max["gauss"]), dtype=bool)}
 
         # turn False -> True for any binary in the sampler
-        inds["gauss"][:, :, : len(gauss_inj_params)] = True
+        # inds["gauss"][:, :, : len(gauss_inj_params)] = True
 
         # describes priors for all leaves independently
         priors = {
@@ -274,6 +286,8 @@ class ErynTest(unittest.TestCase):
             ),
         ]
 
+        base_like = log_like_fn_gauss_pulse(np.asarray([]), t, y, sigma)
+        
         ensemble = EnsembleSampler(
             nwalkers,
             ndim,
@@ -286,6 +300,7 @@ class ErynTest(unittest.TestCase):
             nleaves_max=nleaves_max,
             nleaves_min=nleaves_min,
             moves=moves,
+            fill_zero_leaves_val=base_like,
             rj_moves=rj_moves,  # basic generation of new leaves from the prior
         )
 
@@ -295,9 +310,9 @@ class ErynTest(unittest.TestCase):
         # setup starting state
         state = State(coords, log_like=log_like, log_prior=log_prior, inds=inds)
 
-        nsteps = 20
+        nsteps = 1000
         last_sample = ensemble.run_mcmc(
-            state, nsteps, burn=10, progress=False, thin_by=1
+            state, nsteps, burn=1000, progress=True, thin_by=1
         )
 
         last_sample.branches["gauss"].nleaves
@@ -312,7 +327,16 @@ class ErynTest(unittest.TestCase):
         # same as ensemble.get_chain()['gauss'][ensemble.get_inds()['gauss']]
         samples = samples[~np.isnan(samples[:, 0])]
 
-        means = np.asarray(gauss_inj_params)[:, 1]
+        # check temperature index
+        cold_chain = ensemble.backend.get_chain(discard=10, thin=2, temp_index=1)
+
+        #means = np.asarray(gauss_inj_params)[:, 1]
+        # fig, (ax1, ax2) = plt.subplots(1, 2)
+        # ax1.hist(nleaves[:, 0].flatten(), np.arange(0, 3) - 0.5)
+        # ax2.plot(t, y)
+        # ax2.plot(t, injection)
+        # plt.show()
+        # breakpoint()
 
     def test_rj_multiple_branches(self):
         nwalkers = 20
@@ -344,7 +368,7 @@ class ErynTest(unittest.TestCase):
         injection += combine_sine(t, np.asarray(sine_inj_params))
 
         # set noise level
-        sigma = 2.0
+        sigma = 200.0
 
         # produce full data
         y = injection + sigma * np.random.randn(len(injection))
@@ -413,6 +437,24 @@ class ErynTest(unittest.TestCase):
 
         fp = "_test_backend.h5"
 
+        # just to test iterate_branches
+        tmp = EnsembleSampler(
+            nwalkers,
+            ndims,
+            log_like_fn_gauss_and_sine,
+            priors,
+            args=[t, y, sigma],
+            tempering_kwargs=dict(ntemps=ntemps),
+            nbranches=len(branch_names),
+            branch_names=branch_names,
+            nleaves_max=nleaves_max,
+            nleaves_min=nleaves_min,
+            moves=moves,
+            rj_moves="iterate_branches",  # basic generation of new leaves from the prior
+            backend=None,
+        )
+        del tmp
+
         ensemble = EnsembleSampler(
             nwalkers,
             ndims,
@@ -425,7 +467,7 @@ class ErynTest(unittest.TestCase):
             nleaves_max=nleaves_max,
             nleaves_min=nleaves_min,
             moves=moves,
-            rj_moves=True,  # basic generation of new leaves from the prior
+            rj_moves="separate_branches",  # basic generation of new leaves from the prior
             backend=fp,
         )
 
@@ -770,27 +812,103 @@ class ErynTest(unittest.TestCase):
         )
 
     def test_group_stretch(self):
+
         from eryn.moves import GroupStretchMove
 
         class MeanGaussianGroupMove(GroupStretchMove):
             def __init__(self, **kwargs):
+                # make sure kwargs get sent into group stretch parent class
                 GroupStretchMove.__init__(self, **kwargs)
 
             def setup_friends(self, branches):
-                self.friends = branches["gauss"].coords[branches["gauss"].inds]
-                self.means = self.friends[:, 1]
 
-            def find_friends(self, name, s, s_inds=None):
-                friends = np.zeros_like(s)
-                means_here = s[s_inds][:, 1]
-                dist = np.abs(means_here[:, None] - self.means[None, :])
-                dist_inds_sort = np.argsort(dist, axis=-1)
-                inds_choice = np.random.randint(
-                    0, self.nfriends, size=means_here.shape[0]
+                # store cold-chain information
+                friends = branches["gauss"].coords[0, branches["gauss"].inds[0]]
+                means = friends[:, 1].copy()  # need the copy
+
+                # take unique to avoid errors at the start of sampling
+                self.means, uni_inds = np.unique(means, return_index=True)
+                self.friends = friends[uni_inds]
+
+                # sort
+                inds_sort = np.argsort(self.means)
+                self.friends[:] = self.friends[inds_sort]
+                self.means[:] = self.means[inds_sort]
+
+                # get all current means from all temperatures
+                current_means = branches["gauss"].coords[branches["gauss"].inds, 1]
+
+                # calculate their distances to each stored friend
+                dist = np.abs(current_means[:, None] - self.means[None, :])
+
+                # get closest friends
+                inds_closest = np.argsort(dist, axis=1)[:, : self.nfriends]
+
+                # store in branch supplemental
+                branches["gauss"].branch_supplemental[branches["gauss"].inds] = {
+                    "inds_closest": inds_closest
+                }
+
+                # make sure to "turn off" leaves that are deactivated by setting their
+                # index to -1.
+                branches["gauss"].branch_supplemental[~branches["gauss"].inds] = {
+                    "inds_closest": -np.ones(
+                        (ntemps, nwalkers, nleaves_max, self.nfriends), dtype=int
+                    )[~branches["gauss"].inds]
+                }
+
+            def fix_friends(self, branches):
+                # when RJMCMC activates a new leaf, when it gets to this proposal, its inds_closest
+                # will need to be updated
+
+                # activated & does not have an assigned index
+                fix = branches["gauss"].inds & (
+                    np.all(
+                        branches["gauss"].branch_supplemental[:]["inds_closest"] == -1,
+                        axis=-1,
+                    )
                 )
-                keep = dist_inds_sort[(np.arange(inds_choice.shape[0]), inds_choice)]
 
-                friends[s_inds] = self.friends[keep]
+                if not np.any(fix):
+                    return
+
+                # same process as above, only for fix
+                current_means = branches["gauss"].coords[fix, 1]
+
+                dist = np.abs(current_means[:, None] - self.means[None, :])
+                inds_closest = np.argsort(dist, axis=1)[:, : self.nfriends]
+
+                branches["gauss"].branch_supplemental[fix] = {
+                    "inds_closest": inds_closest
+                }
+
+                # verify everything worked
+                fix_check = branches["gauss"].inds & (
+                    np.all(
+                        branches["gauss"].branch_supplemental[:]["inds_closest"] == -1,
+                        axis=-1,
+                    )
+                )
+                assert not np.any(fix_check)
+
+            def find_friends(self, name, s, s_inds=None, branch_supps=None):
+
+                # prepare buffer array
+                friends = np.zeros_like(s)
+
+                # determine the closest friends for s_inds == True
+                inds_closest_here = branch_supps[name][s_inds]["inds_closest"]
+
+                # take one at random
+                random_inds = inds_closest_here[
+                    np.arange(inds_closest_here.shape[0]),
+                    np.random.randint(
+                        self.nfriends, size=(inds_closest_here.shape[0],)
+                    ),
+                ]
+
+                # store in buffer array
+                friends[s_inds] = self.friends[random_inds]
                 return friends
 
         # set random seed
@@ -879,8 +997,8 @@ class ErynTest(unittest.TestCase):
         # cov = {"gauss": np.diag(np.ones(ndim)) * factor}
 
         # moves = GaussianMove(cov)
-
-        moves = MeanGaussianGroupMove(nfriends=nwalkers)
+        nfriends = nwalkers
+        moves = MeanGaussianGroupMove(nfriends=nfriends)
 
         ensemble = EnsembleSampler(
             nwalkers,
@@ -904,9 +1022,27 @@ class ErynTest(unittest.TestCase):
         # will not be zero due to noise
 
         # setup starting state
-        state = State(coords, log_like=log_like, log_prior=log_prior, inds=inds)
+        from eryn.state import BranchSupplemental
 
-        nsteps = 20
+        branch_supps = {
+            "gauss": BranchSupplemental(
+                {
+                    "inds_closest": np.zeros(
+                        inds["gauss"].shape + (nfriends,), dtype=int
+                    )
+                },
+                base_shape=(ntemps, nwalkers, nleaves_max),
+            )
+        }
+        state = State(
+            coords,
+            log_like=log_like,
+            log_prior=log_prior,
+            inds=inds,
+            branch_supplemental=branch_supps,
+        )
+
+        nsteps = 2000
         last_sample = ensemble.run_mcmc(
             state, nsteps, burn=10, progress=False, thin_by=1
         )

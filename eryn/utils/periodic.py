@@ -38,7 +38,7 @@ class PeriodicContainer:
             p2 (dict): If dict, keys are ``branch_names``
                 and values are positions with parameters along the final dimension.
             xp (object, optional): ``numpy`` or ``cupy``. If ``None``, use ``numpy``.
-                (default: ``None``) 
+                (default: ``None``)
 
         Returns:
             dict: Distances accounting for periodicity.
@@ -58,14 +58,15 @@ class PeriodicContainer:
         # prepare output
         out_diff = {}
         for key in names:
-            # get period info
-            periods = xp.asarray(self.periods[key])
-            inds_periodic = xp.asarray(self.inds_periodic[key])
-
+           
             # get basic distance
             diff = p2[key] - p1[key]
 
-            if len(self.periods[key]) > 0:
+            if  key in self.periods and len(self.periods[key]) > 0:
+                 # get period info
+                periods = xp.asarray(self.periods[key])
+                inds_periodic = xp.asarray(self.inds_periodic[key])
+
                 # get specific periodic parameterss
                 diff_periodic = diff[:, :, inds_periodic]
 
@@ -100,7 +101,7 @@ class PeriodicContainer:
             p (dict): If dict, keys are ``branch_names``
                 and values are positions with parameters along the final dimension.
             xp (object, optional): ``numpy`` or ``cupy``. If ``None``, use ``numpy``.
-                (default: ``None``) 
+                (default: ``None``)
 
         """
 
@@ -113,7 +114,7 @@ class PeriodicContainer:
         for key in names:
             pos = p[key]
 
-            if len(self.periods[key]) > 0:
+            if  key in self.periods and len(self.periods[key]) > 0:
                 # get periodic information
                 periods = xp.asarray(self.periods[key])
                 inds_periodic = xp.asarray(self.inds_periodic[key])

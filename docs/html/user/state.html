@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" data-content_root="../">
 <head>
@@ -5,6 +7,18 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>State &mdash; Eryn 0.0.1 documentation</title>
+<<<<<<< HEAD
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=92fd9be5" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=d45e8c67"></script>
+      <script src="../_static/doctools.js?v=9a2dae69"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+=======
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=19f00094" />
 
@@ -19,6 +33,7 @@
         <script src="../_static/doctools.js?v=888ff710"></script>
         <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
         <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+>>>>>>> c377795 (fixed stretch in ndim=1)
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -52,7 +67,11 @@
 <li class="toctree-l2"><a class="reference internal" href="#eryn.state.State"><code class="docutils literal notranslate"><span class="pre">State</span></code></a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#eryn.state.State.branches_inds"><code class="docutils literal notranslate"><span class="pre">State.branches_inds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#eryn.state.State.branches_coords"><code class="docutils literal notranslate"><span class="pre">State.branches_coords</span></code></a></li>
+<<<<<<< HEAD
+<li class="toctree-l3"><a class="reference internal" href="#eryn.state.State.branches_supplemental"><code class="docutils literal notranslate"><span class="pre">State.branches_supplemental</span></code></a></li>
+=======
 <li class="toctree-l3"><a class="reference internal" href="#eryn.state.State.branches_supplimental"><code class="docutils literal notranslate"><span class="pre">State.branches_supplimental</span></code></a></li>
+>>>>>>> c377795 (fixed stretch in ndim=1)
 <li class="toctree-l3"><a class="reference internal" href="#eryn.state.State.branch_names"><code class="docutils literal notranslate"><span class="pre">State.branch_names</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#eryn.state.State.get_log_posterior"><code class="docutils literal notranslate"><span class="pre">State.get_log_posterior()</span></code></a></li>
 </ul>
@@ -61,6 +80,8 @@
 <li class="toctree-l3"><a class="reference internal" href="#eryn.state.Branch.nleaves"><code class="docutils literal notranslate"><span class="pre">Branch.nleaves</span></code></a></li>
 </ul>
 </li>
+<<<<<<< HEAD
+=======
 <li class="toctree-l2"><a class="reference internal" href="#eryn.state.BranchSupplimental"><code class="docutils literal notranslate"><span class="pre">BranchSupplimental</span></code></a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#eryn.state.BranchSupplimental.holder"><code class="docutils literal notranslate"><span class="pre">BranchSupplimental.holder</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#eryn.state.BranchSupplimental.add_objects"><code class="docutils literal notranslate"><span class="pre">BranchSupplimental.add_objects()</span></code></a></li>
@@ -71,6 +92,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#eryn.state.BranchSupplimental.flat"><code class="docutils literal notranslate"><span class="pre">BranchSupplimental.flat</span></code></a></li>
 </ul>
 </li>
+>>>>>>> c377795 (fixed stretch in ndim=1)
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="backend.html">Backends</a></li>
@@ -119,10 +141,17 @@
              
   <section id="state">
 <h1>State<a class="headerlink" href="#state" title="Link to this heading"></a></h1>
+<<<<<<< HEAD
+<p>The <a class="reference internal" href="#eryn.state.State" title="eryn.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">eryn.state.State</span></code></a> carries the information around for all walkers at a given step. The individual branches are carried in <a class="reference internal" href="#eryn.state.Branch" title="eryn.state.Branch"><code class="xref py py-class docutils literal notranslate"><span class="pre">eryn.state.Branch</span></code></a> class objects. A utility provided for state objects is the <code class="xref py py-class docutils literal notranslate"><span class="pre">eryn.state.BranchSupplimental</span></code> object. This object can carry information around the sampler while being indexed and moved around just like other sampler information. See the tutorial for more information.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="eryn.state.State">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">eryn.state.</span></span><span class="sig-name descname"><span class="pre">State</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coords</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">branch_supplemental</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">supplemental</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_like</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_prior</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">betas</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">blobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">copy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#eryn.state.State" title="Link to this definition"></a></dt>
+=======
 <p>The <a class="reference internal" href="#eryn.state.State" title="eryn.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">eryn.state.State</span></code></a> carries the information around for all walkers at a given step. The individual branches are carried in <a class="reference internal" href="#eryn.state.Branch" title="eryn.state.Branch"><code class="xref py py-class docutils literal notranslate"><span class="pre">eryn.state.Branch</span></code></a> class objects. A utility provided for state objects is the <a class="reference internal" href="#eryn.state.BranchSupplimental" title="eryn.state.BranchSupplimental"><code class="xref py py-class docutils literal notranslate"><span class="pre">eryn.state.BranchSupplimental</span></code></a> object. This object can carry information around the sampler while being indexed and moved around just like other sampler information. See the tutorial for more information.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="eryn.state.State">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">eryn.state.</span></span><span class="sig-name descname"><span class="pre">State</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coords</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">branch_supplimental</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">supplimental</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_like</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_prior</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">betas</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">blobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">copy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#eryn.state.State" title="Link to this definition"></a></dt>
+>>>>>>> c377795 (fixed stretch in ndim=1)
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>The state of the ensemble during an MCMC run</p>
 <dl class="field-list simple">
@@ -175,9 +204,15 @@ Input should be <code class="docutils literal notranslate"><span class="pre">Non
 </dd></dl>
 
 <dl class="py property">
+<<<<<<< HEAD
+<dt class="sig sig-object py" id="eryn.state.State.branches_supplemental">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">branches_supplemental</span></span><a class="headerlink" href="#eryn.state.State.branches_supplemental" title="Link to this definition"></a></dt>
+<dd><p>Get the <code class="docutils literal notranslate"><span class="pre">branch.supplemental</span></code> from all branch objects returned as a dictionary with <code class="docutils literal notranslate"><span class="pre">branch_names</span></code> as keys.</p>
+=======
 <dt class="sig sig-object py" id="eryn.state.State.branches_supplimental">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">branches_supplimental</span></span><a class="headerlink" href="#eryn.state.State.branches_supplimental" title="Link to this definition"></a></dt>
 <dd><p>Get the <code class="docutils literal notranslate"><span class="pre">branch.supplimental</span></code> from all branch objects returned as a dictionary with <code class="docutils literal notranslate"><span class="pre">branch_names</span></code> as keys.</p>
+>>>>>>> c377795 (fixed stretch in ndim=1)
 </dd></dl>
 
 <dl class="py property">
@@ -207,7 +242,11 @@ Input should be <code class="docutils literal notranslate"><span class="pre">Non
 
 <dl class="py class">
 <dt class="sig sig-object py" id="eryn.state.Branch">
+<<<<<<< HEAD
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">eryn.state.</span></span><span class="sig-name descname"><span class="pre">Branch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coords</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">branch_supplemental</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#eryn.state.Branch" title="Link to this definition"></a></dt>
+=======
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">eryn.state.</span></span><span class="sig-name descname"><span class="pre">Branch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coords</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">branch_supplimental</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#eryn.state.Branch" title="Link to this definition"></a></dt>
+>>>>>>> c377795 (fixed stretch in ndim=1)
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Special container for one branch (model)</p>
 <p>This class is a key component of Eryn. It this type of object
@@ -224,7 +263,7 @@ was used in this step. Parameters from unused walkers are still kept. When they
 are output to the backend, the backend saves a special number (default: <code class="docutils literal notranslate"><span class="pre">np.nan</span></code>) for all coords
 related to unused leaves at that step. If None, inds will fill with all True values.
 (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
-<li><p><strong>branch_supplimental</strong> (<em>object</em>) – <a class="reference internal" href="#eryn.state.BranchSupplimental" title="eryn.state.BranchSupplimental"><code class="xref py py-class docutils literal notranslate"><span class="pre">BranchSupplimental</span></code></a> object specific to this branch. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
+<li><p><strong>branch_supplemental</strong> (<em>object</em>) – <code class="xref py py-class docutils literal notranslate"><span class="pre">BranchSupplemental</span></code> object specific to this branch. (default: <code class="docutils literal notranslate"><span class="pre">None</span></code>)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
@@ -239,6 +278,8 @@ related to unused leaves at that step. If None, inds will fill with all True val
 
 </dd></dl>
 
+<<<<<<< HEAD
+=======
 <dl class="py class">
 <dt class="sig sig-object py" id="eryn.state.BranchSupplimental">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">eryn.state.</span></span><span class="sig-name descname"><span class="pre">BranchSupplimental</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">copy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#eryn.state.BranchSupplimental" title="Link to this definition"></a></dt>
@@ -384,6 +425,7 @@ objects with shape and dimension that can broadcast to match that of indices.</p
 
 </dd></dl>
 
+>>>>>>> c377795 (fixed stretch in ndim=1)
 </section>
 
 
