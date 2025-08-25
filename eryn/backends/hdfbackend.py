@@ -144,7 +144,7 @@ class HDFBackend(Backend):
                 if try_num >= max_tries:
                     raise BlockingIOError("Max tries exceeded trying to open h5 file.")
                 print("Failed to open h5 file. Trying again.")
-                time.sleep(10.0)
+                time.sleep(1.0)
 
         # get the data type and store it if it is not previously set
         if not self.dtype_set and self.name in f:
